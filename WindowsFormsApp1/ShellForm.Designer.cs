@@ -613,7 +613,7 @@ namespace WindowsFormsApp1
             // lblAuditKind
             // 
             this.lblAuditKind.AutoSize = true;
-            this.lblAuditKind.Location = new System.Drawing.Point(421, 18);
+            this.lblAuditKind.Location = new System.Drawing.Point(439, 18);
             this.lblAuditKind.Name = "lblAuditKind";
             this.lblAuditKind.Size = new System.Drawing.Size(88, 13);
             this.lblAuditKind.TabIndex = 2;
@@ -623,7 +623,7 @@ namespace WindowsFormsApp1
             // 
             this.txtAuditFilter.Location = new System.Drawing.Point(155, 15);
             this.txtAuditFilter.Name = "txtAuditFilter";
-            this.txtAuditFilter.Size = new System.Drawing.Size(180, 20);
+            this.txtAuditFilter.Size = new System.Drawing.Size(225, 20);
             this.txtAuditFilter.TabIndex = 1;
             // 
             // lblAuditFilter

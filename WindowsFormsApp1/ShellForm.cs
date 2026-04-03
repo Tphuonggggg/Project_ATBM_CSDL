@@ -144,9 +144,21 @@ namespace WindowsFormsApp1
 
         private async void btnUserCreate_Click(object sender, EventArgs e)
         {
+            var user = (txtUserName.Text ?? "").Trim();
+            var pwd = txtUserPass.Text ?? "";
+            if (string.IsNullOrEmpty(user))
+            {
+                MessageBox.Show(this, "Vui lòng nhập tên tài khoản.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (string.IsNullOrEmpty(pwd))
+            {
+                MessageBox.Show(this, "Vui lòng nhập mật khẩu (không để trống).", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             try
             {
-                var sql = $"create user {OracleSql.Q(txtUserName.Text)} identified by {OracleSql.QLit(txtUserPass.Text)}";
+                var sql = $"create user {OracleSql.Q(user)} identified by {OracleSql.QPassword(pwd)}";
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await RefreshManageAsync();
             }
@@ -155,9 +167,21 @@ namespace WindowsFormsApp1
 
         private async void btnUserAlter_Click(object sender, EventArgs e)
         {
+            var user = (txtUserName.Text ?? "").Trim();
+            var pwd = txtUserPass.Text ?? "";
+            if (string.IsNullOrEmpty(user))
+            {
+                MessageBox.Show(this, "Vui lòng nhập tên tài khoản.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (string.IsNullOrEmpty(pwd))
+            {
+                MessageBox.Show(this, "Vui lòng nhập mật khẩu mới.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             try
             {
-                var sql = $"alter user {OracleSql.Q(txtUserName.Text)} identified by {OracleSql.QLit(txtUserPass.Text)}";
+                var sql = $"alter user {OracleSql.Q(user)} identified by {OracleSql.QPassword(pwd)}";
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await RefreshManageAsync();
             }

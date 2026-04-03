@@ -166,17 +166,17 @@ namespace WindowsFormsApp1
 
         private async void btnUserCreate_Click(object sender, EventArgs e)
         {
-            var u = txtUserName.Text;
-            var p = txtUserPass.Text;
-            var sql = $"create user {OracleSql.Q(u)} identified by {OracleSql.QLit(p)}";
+            var u = (txtUserName.Text ?? "").Trim();
+            var p = txtUserPass.Text ?? "";
+            var sql = $"create user {OracleSql.Q(u)} identified by {OracleSql.QPassword(p)}";
             await ExecSqlAsync(sql);
         }
 
         private async void btnUserAlterPass_Click(object sender, EventArgs e)
         {
-            var u = txtUserName.Text;
-            var p = txtUserPass.Text;
-            var sql = $"alter user {OracleSql.Q(u)} identified by {OracleSql.QLit(p)}";
+            var u = (txtUserName.Text ?? "").Trim();
+            var p = txtUserPass.Text ?? "";
+            var sql = $"alter user {OracleSql.Q(u)} identified by {OracleSql.QPassword(p)}";
             await ExecSqlAsync(sql);
         }
 

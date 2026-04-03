@@ -54,6 +54,16 @@ namespace WindowsFormsApp1
             var s = literal.Replace("'", "''");
             return $"'{s}'";
         }
+
+        /// <summary>
+        /// Mật khẩu trong IDENTIFIED BY phải dùng nháy kép (không dùng nháy đơn như chuỗi SQL thường).
+        /// </summary>
+        public static string QPassword(string literal)
+        {
+            if (literal == null) return "\"\"";
+            var s = literal.Replace("\"", "\"\"");
+            return $"\"{s}\"";
+        }
     }
 }
 
