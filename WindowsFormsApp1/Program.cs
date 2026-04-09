@@ -21,7 +21,7 @@ namespace WindowsFormsApp1
                 if (login.ShowDialog() != DialogResult.OK)
                     return;
 
-                Application.Run(new ShellForm(login.ConnectionString));
+                Application.Run(new MainForm(login.ConnectionString));
             }
         }
     }

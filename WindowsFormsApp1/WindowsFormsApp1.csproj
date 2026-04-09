@@ -75,6 +75,9 @@
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="OracleConnectionManager.cs" />
+    <Compile Include="OracleHelper.cs" />
+    <Compile Include="AdminService.cs" />
     <Compile Include="OracleDb.cs" />
     <Compile Include="OracleSql.cs" />
     <Compile Include="ColumnSelectForm.cs">
