@@ -174,28 +174,49 @@ namespace WindowsFormsApp1
             return OracleHelper.ExecuteNonQueryAsync(_connectionString, sql);
         }
 
-        // ===== VIEW PRIVS =====
-        public Task<DataTable> GetPrivilegesOfGranteeAsync(string granteeUpper)
+        // ===== VIEW PRIVS (truy vấn trực tiếp Oracle, không xử lý phía client) =====
+        public Task<DataTable> GetSystemPrivilegesOfGranteeAsync(string granteeUpper)
         {
-            var g = (granteeUpper ?? string.Empty).Trim().ToUpperInvariant();
-            if (g.Length == 0) throw new InvalidOperationException("Vui lòng nhập tên user/role.");
-
-            var sql = $@"
-select grantee, privilege as sys_priv, cast(null as varchar2(4000)) as role, cast(null as varchar2(4000)) as obj, cast(null as varchar2(4000)) as col, admin_option as opt, 'SYS' as src
-from dba_sys_privs where grantee = {OracleHelper.QuoteLiteral(g)}
-union all
-select grantee, cast(null as varchar2(4000)) as sys_priv, granted_role as role, cast(null as varchar2(4000)) as obj, cast(null as varchar2(4000)) as col, admin_option as opt, 'ROLE' as src
-from dba_role_privs where grantee = {OracleHelper.QuoteLiteral(g)}
-union all
-select grantee, cast(null as varchar2(4000)) as sys_priv, cast(null as varchar2(4000)) as role,
-       owner||'.'||table_name as obj, cast(null as varchar2(4000)) as col, grantable as opt, 'TAB' as src
-from dba_tab_privs where grantee = {OracleHelper.QuoteLiteral(g)}
-union all
-select grantee, cast(null as varchar2(4000)) as sys_priv, cast(null as varchar2(4000)) as role,
-       owner||'.'||table_name as obj, column_name as col, grantable as opt, 'COL' as src
-from dba_col_privs where grantee = {OracleHelper.QuoteLiteral(g)}";
-
+            var g = NormalizeGrantee(granteeUpper);
+            var sql = $@"select grantee, privilege, admin_option
+from dba_sys_privs
+where grantee = {OracleHelper.QuoteLiteral(g)}
+order by privilege";
             return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public Task<DataTable> GetRolePrivilegesOfGranteeAsync(string granteeUpper)
+        {
+            var g = NormalizeGrantee(granteeUpper);
+            var sql = $@"select grantee, granted_role, admin_option, default_role
+from dba_role_privs
+where grantee = {OracleHelper.QuoteLiteral(g)}
+order by granted_role";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public Task<DataTable> GetObjectPrivilegesOfGranteeAsync(string granteeUpper)
+        {
+            var g = NormalizeGrantee(granteeUpper);
+            // Gộp quyền trên object + quyền theo cột bằng UNION ALL, Oracle tự xử lý
+            var sql = $@"select grantee, owner, table_name as object_name, cast(null as varchar2(128)) as column_name,
+       privilege, grantable, 'OBJECT' as priv_level
+from dba_tab_privs
+where grantee = {OracleHelper.QuoteLiteral(g)}
+union all
+select grantee, owner, table_name as object_name, column_name,
+       privilege, grantable, 'COLUMN' as priv_level
+from dba_col_privs
+where grantee = {OracleHelper.QuoteLiteral(g)}
+order by owner, object_name, priv_level, column_name, privilege";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        private static string NormalizeGrantee(string grantee)
+        {
+            var g = (grantee ?? string.Empty).Trim().ToUpperInvariant();
+            if (g.Length == 0) throw new InvalidOperationException("Vui lòng nhập tên user/role.");
+            return g;
         }
 
         // ===== OBJECT BROWSER =====
