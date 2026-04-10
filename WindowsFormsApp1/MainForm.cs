@@ -205,19 +205,9 @@ namespace WindowsFormsApp1
             };
         }
 
-        private static Button DangerButton(string text)
-        {
-            return new Button
-            {
-                Text = text,
-                Dock = DockStyle.Fill,
-                BackColor = Color.FromArgb(192, 57, 43),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold),
-                Height = 32
-            };
-        }
+        // Giữ tên DangerButton để tương thích các chỗ đang gọi, nhưng trả về
+        // nút cùng màu xanh với PrimaryButton cho giao diện nhất quán.
+        private static Button DangerButton(string text) => PrimaryButton(text);
 
         private TabPage BuildTabUsers()
         {
@@ -247,7 +237,7 @@ namespace WindowsFormsApp1
 
             _txtUserName = new TextBox { Dock = DockStyle.Fill };
             _txtUserPassword = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
-            _cboAccountStatus = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboAccountStatus = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
             _cboAccountStatus.Items.AddRange(new object[] { "OPEN", "LOCKED" });
             _cboAccountStatus.SelectedIndex = 0;
 
@@ -308,6 +298,16 @@ namespace WindowsFormsApp1
             tab.Controls.Add(gridBox);
             tab.Controls.Add(hint);
             tab.Controls.Add(form);
+
+            // Tự tải danh sách user lần đầu vào tab
+            bool usersLoaded = false;
+            tab.Enter += async (s, e) =>
+            {
+                if (usersLoaded) return;
+                usersLoaded = true;
+                await RefreshUsersAsync();
+            };
+
             return tab;
         }
 
@@ -387,6 +387,15 @@ namespace WindowsFormsApp1
             tab.Controls.Add(gridBox);
             tab.Controls.Add(hint);
             tab.Controls.Add(form);
+
+            bool rolesLoaded = false;
+            tab.Enter += async (s, e) =>
+            {
+                if (rolesLoaded) return;
+                rolesLoaded = true;
+                await RefreshRolesAsync();
+            };
+
             return tab;
         }
 
@@ -395,87 +404,178 @@ namespace WindowsFormsApp1
             var tab = new TabPage("3. Grant — Cấp quyền") { Padding = new Padding(12), BackColor = Color.White };
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));   // grantee bar
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));  // system priv group
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));  // role group
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 200));   // object priv group (fill)
 
-            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
-            top.Controls.Add(new Label { Text = "Người/role nhận quyền (Grantee):", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 10, 6, 0) });
-            _cboGrantGrantee = new ComboBox { Width = 320, DropDownStyle = ComboBoxStyle.DropDownList };
-            var btnLoad = new Button { Text = "↻ Tải danh sách users/roles", Width = 200, Height = 28, BackColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnLoad.Click += async (s, e) => await LoadGranteesAsync();
-            top.Controls.Add(_cboGrantGrantee);
-            top.Controls.Add(btnLoad);
+            layout.Controls.Add(BuildGranteeBar(true), 0, 0);
 
-            _grpGrantSysPriv = new GroupBox { Text = "① Cấp quyền hệ thống (system privilege)", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            _cboGrantSysPriv = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
-            _chkGrantSysWithAdmin = new CheckBox { Text = "WITH ADMIN OPTION (cho phép grantee cấp lại quyền này)", Dock = DockStyle.Top, Height = 26 };
+            _grpGrantSysPriv = BuildActionGroup("① Cấp quyền hệ thống (system privilege)");
+            _cboGrantSysPriv = NewAutoCombo();
+            _chkGrantSysWithAdmin = new CheckBox { Text = "WITH ADMIN OPTION — cho phép grantee cấp lại quyền này", Dock = DockStyle.Fill, AutoSize = false };
             _btnGrantSys = PrimaryButton("Cấp system privilege");
-            _btnGrantSys.Dock = DockStyle.Top;
             _btnGrantSys.Click += async (s, e) => await GrantSysAsync();
-            _grpGrantSysPriv.Controls.Add(_btnGrantSys);
-            _grpGrantSysPriv.Controls.Add(_chkGrantSysWithAdmin);
-            _grpGrantSysPriv.Controls.Add(_cboGrantSysPriv);
+            FillActionGroup(_grpGrantSysPriv, "Privilege:", _cboGrantSysPriv, _chkGrantSysWithAdmin, _btnGrantSys);
 
-            _grpGrantRole = new GroupBox { Text = "② Cấp role cho user/role", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            _cboGrantRole = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
-            _chkGrantRoleWithAdmin = new CheckBox { Text = "WITH ADMIN OPTION", Dock = DockStyle.Top, Height = 26 };
+            _grpGrantRole = BuildActionGroup("② Cấp role cho user/role");
+            _cboGrantRole = NewAutoCombo();
+            _chkGrantRoleWithAdmin = new CheckBox { Text = "WITH ADMIN OPTION", Dock = DockStyle.Fill, AutoSize = false };
             _btnGrantRole = PrimaryButton("Cấp role");
-            _btnGrantRole.Dock = DockStyle.Top;
             _btnGrantRole.Click += async (s, e) => await GrantRoleAsync();
-            _grpGrantRole.Controls.Add(_btnGrantRole);
-            _grpGrantRole.Controls.Add(_chkGrantRoleWithAdmin);
-            _grpGrantRole.Controls.Add(_cboGrantRole);
+            FillActionGroup(_grpGrantRole, "Role:", _cboGrantRole, _chkGrantRoleWithAdmin, _btnGrantRole);
 
-            _grpGrantObjPriv = new GroupBox { Text = "③ Cấp quyền trên đối tượng (table/view/procedure/function). SELECT/UPDATE có thể giới hạn theo cột.", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            var pnlObj = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
-            pnlObj.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-            pnlObj.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            _grpGrantObjPriv = new GroupBox
+            {
+                Text = "③ Cấp quyền trên đối tượng (table / view / procedure / function). SELECT & UPDATE có thể giới hạn theo cột.",
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12, 20, 12, 12),
+                Font = new Font("Segoe UI Semibold", 9.25f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(33, 64, 107)
+            };
 
-            _cboGrantObjType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboGrantObjType = NewAutoCombo();
             _cboGrantObjType.Items.AddRange(new object[] { "TABLE", "VIEW", "PROCEDURE", "FUNCTION" });
             _cboGrantObjType.SelectedIndex = 0;
 
-            _cboGrantObjPriv = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboGrantObjPriv = NewAutoCombo();
             _cboGrantObjType.SelectedIndexChanged += (s, e) => PopulateObjectPrivileges(_cboGrantObjType, _cboGrantObjPriv);
             PopulateObjectPrivileges(_cboGrantObjType, _cboGrantObjPriv);
 
-            _txtGrantObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES" };
-            _txtGrantObjCols = new TextBox { Dock = DockStyle.Fill };
-            _chkGrantObjWithGrant = new CheckBox { Text = "WITH GRANT OPTION", Dock = DockStyle.Fill };
+            _txtGrantObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES", Font = new Font("Consolas", 9.5f) };
+            _txtGrantObjCols = new TextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 9.5f) };
+            _chkGrantObjWithGrant = new CheckBox { Text = "WITH GRANT OPTION", Dock = DockStyle.Fill, AutoSize = false };
             _btnGrantObj = PrimaryButton("Cấp quyền object");
-            _btnGrantObj.Dock = DockStyle.Fill;
-            _tips.SetToolTip(_txtGrantObjCols, "Chỉ áp dụng khi Privilege = SELECT hoặc UPDATE. Nhập danh sách cột cách nhau bằng dấu phẩy. Để trống = cấp trên toàn bộ object.");
-            _tips.SetToolTip(_txtGrantObjName, "Dạng OWNER.OBJECT, ví dụ HR.EMPLOYEES");
             _btnGrantObj.Click += async (s, e) => await GrantObjAsync();
+            _tips.SetToolTip(_txtGrantObjCols, "Chỉ áp dụng khi Privilege = SELECT hoặc UPDATE. Danh sách cột cách nhau bởi dấu phẩy. Để trống = cấp trên toàn object.");
+            _tips.SetToolTip(_txtGrantObjName, "Dạng OWNER.OBJECT, ví dụ HR.EMPLOYEES");
 
-            pnlObj.Controls.Add(new Label { Text = "Object type", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 0);
-            pnlObj.Controls.Add(_cboGrantObjType, 1, 0);
-            pnlObj.Controls.Add(new Label { Text = "Privilege", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 1);
-            pnlObj.Controls.Add(_cboGrantObjPriv, 1, 1);
-            pnlObj.Controls.Add(new Label { Text = "Object (OWNER.OBJECT)", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 2);
-            pnlObj.Controls.Add(_txtGrantObjName, 1, 2);
-            pnlObj.Controls.Add(new Label { Text = "Columns (CSV)", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 3);
-            pnlObj.Controls.Add(_txtGrantObjCols, 1, 3);
-            pnlObj.Controls.Add(_chkGrantObjWithGrant, 0, 4);
-            pnlObj.Controls.Add(_btnGrantObj, 1, 4);
+            _grpGrantObjPriv.Controls.Add(BuildObjectPrivPanel(
+                _cboGrantObjType, _cboGrantObjPriv, _txtGrantObjName, _txtGrantObjCols, _chkGrantObjWithGrant, _btnGrantObj));
 
-            _grpGrantObjPriv.Controls.Add(pnlObj);
-
-            layout.Controls.Add(top, 0, 0);
             layout.Controls.Add(_grpGrantSysPriv, 0, 1);
             layout.Controls.Add(_grpGrantRole, 0, 2);
             layout.Controls.Add(_grpGrantObjPriv, 0, 3);
 
             tab.Controls.Add(layout);
-            tab.Enter += async (s, e) => await EnsurePrivilegeListsLoadedAsync();
+            bool grantLoaded = false;
+            tab.Enter += async (s, e) =>
+            {
+                await EnsurePrivilegeListsLoadedAsync();
+                if (grantLoaded) return;
+                grantLoaded = true;
+                await LoadGranteesAsync();
+            };
             return tab;
+        }
+
+        // ==== Helpers dùng chung cho Grant/Revoke ====
+        private static ComboBox NewAutoCombo() => new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDown,
+            AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            AutoCompleteSource = AutoCompleteSource.ListItems,
+            Font = new Font("Segoe UI", 9.25f)
+        };
+
+        private static GroupBox BuildActionGroup(string title) => new GroupBox
+        {
+            Text = title,
+            Dock = DockStyle.Fill,
+            Padding = new Padding(12, 20, 12, 10),
+            Font = new Font("Segoe UI Semibold", 9.25f, FontStyle.Bold),
+            ForeColor = Color.FromArgb(33, 64, 107)
+        };
+
+        // Mỗi action group: [Label | Combo] / [Option checkbox chiếm cả 2 cột] / [Button chiếm cả 2 cột]
+        private static void FillActionGroup(GroupBox group, string labelText, ComboBox combo, CheckBox option, Button action)
+        {
+            var t = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 4 };
+            t.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+            t.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            t.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));   // 0: Label + Combo
+            t.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));   // 1: Checkbox
+            t.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));   // 2: Button
+            t.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 3: Spacer
+
+            var lbl = new Label { Text = labelText, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.25f, FontStyle.Regular) };
+            t.Controls.Add(lbl, 0, 0);
+            t.Controls.Add(combo, 1, 0);
+
+            t.Controls.Add(option, 0, 1);
+            t.SetColumnSpan(option, 2);
+
+            t.Controls.Add(action, 0, 2);
+            t.SetColumnSpan(action, 2);
+
+            group.Controls.Add(t);
+        }
+
+        private static TableLayoutPanel BuildObjectPrivPanel(
+            ComboBox cboType, ComboBox cboPriv, TextBox txtObj, TextBox txtCols, CheckBox chkOpt, Button btn)
+        {
+            var p = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 7 };
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // 0: Object type
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // 1: Privilege
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // 2: Object name
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));   // 3: Columns
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));   // 4: Option checkbox
+            p.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));   // 5: Button
+            p.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // 6: Spacer hút khoảng trống
+
+            Label L(string s) => new Label { Text = s, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill };
+
+            p.Controls.Add(L("Object type:"), 0, 0);
+            p.Controls.Add(cboType, 1, 0);
+            p.Controls.Add(L("Privilege:"), 0, 1);
+            p.Controls.Add(cboPriv, 1, 1);
+            p.Controls.Add(L("Object (OWNER.OBJECT):"), 0, 2);
+            p.Controls.Add(txtObj, 1, 2);
+            p.Controls.Add(L("Columns (CSV):"), 0, 3);
+            p.Controls.Add(txtCols, 1, 3);
+
+            if (chkOpt != null)
+            {
+                p.Controls.Add(chkOpt, 0, 4);
+                p.SetColumnSpan(chkOpt, 2);
+            }
+
+            p.Controls.Add(btn, 0, 5);
+            p.SetColumnSpan(btn, 2);
+
+            return p;
+        }
+
+        // Thanh chọn Grantee phía trên Grant/Revoke
+        private Control BuildGranteeBar(bool isGrant)
+        {
+            var p = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Padding = new Padding(2, 6, 2, 4) };
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 230));
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            p.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+
+            var lbl = new Label
+            {
+                Text = isGrant ? "Người / role nhận quyền (Grantee):" : "Thu hồi quyền của (Grantee):",
+                TextAlign = ContentAlignment.MiddleLeft,
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI Semibold", 9.25f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(33, 64, 107)
+            };
+
+            var combo = NewAutoCombo();
+            if (isGrant) _cboGrantGrantee = combo; else _cboRevokeGrantee = combo;
+
+            var btn = PrimaryButton("↻ Tải danh sách users / roles");
+            btn.Click += async (s, e) => await LoadGranteesAsync();
+
+            p.Controls.Add(lbl, 0, 0);
+            p.Controls.Add(combo, 1, 0);
+            p.Controls.Add(btn, 2, 0);
+            return p;
         }
 
         private TabPage BuildTabRevoke()
@@ -483,79 +583,68 @@ namespace WindowsFormsApp1
             var tab = new TabPage("4. Revoke — Thu hồi") { Padding = new Padding(12), BackColor = Color.White };
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4 };
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
-            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 180));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
-            top.Controls.Add(new Label { Text = "Thu hồi quyền của (Grantee):", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(0, 10, 6, 0) });
-            _cboRevokeGrantee = new ComboBox { Width = 320, DropDownStyle = ComboBoxStyle.DropDownList };
-            var btnLoad = new Button { Text = "↻ Tải danh sách users/roles", Width = 200, Height = 28, BackColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnLoad.Click += async (s, e) => await LoadGranteesAsync();
-            top.Controls.Add(_cboRevokeGrantee);
-            top.Controls.Add(btnLoad);
+            layout.Controls.Add(BuildGranteeBar(false), 0, 0);
 
-            _grpRevokeSysPriv = new GroupBox { Text = "① Thu hồi quyền hệ thống", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            _cboRevokeSysPriv = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
-            _btnRevokeSys = DangerButton("Thu hồi system privilege");
-            _btnRevokeSys.Dock = DockStyle.Top;
+            _grpRevokeSysPriv = BuildActionGroup("① Thu hồi quyền hệ thống (system privilege)");
+            _cboRevokeSysPriv = NewAutoCombo();
+            _btnRevokeSys = PrimaryButton("Thu hồi system privilege");
             _btnRevokeSys.Click += async (s, e) => await RevokeSysAsync();
-            _grpRevokeSysPriv.Controls.Add(_btnRevokeSys);
-            _grpRevokeSysPriv.Controls.Add(_cboRevokeSysPriv);
+            FillActionGroup(_grpRevokeSysPriv, "Privilege:", _cboRevokeSysPriv,
+                new CheckBox { Text = "(Thu hồi không có option bổ sung)", Dock = DockStyle.Fill, Enabled = false, AutoSize = false },
+                _btnRevokeSys);
 
-            _grpRevokeRole = new GroupBox { Text = "② Thu hồi role", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            _cboRevokeRole = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList };
-            _btnRevokeRole = DangerButton("Thu hồi role");
-            _btnRevokeRole.Dock = DockStyle.Top;
+            _grpRevokeRole = BuildActionGroup("② Thu hồi role");
+            _cboRevokeRole = NewAutoCombo();
+            _btnRevokeRole = PrimaryButton("Thu hồi role");
             _btnRevokeRole.Click += async (s, e) => await RevokeRoleAsync();
-            _grpRevokeRole.Controls.Add(_btnRevokeRole);
-            _grpRevokeRole.Controls.Add(_cboRevokeRole);
+            FillActionGroup(_grpRevokeRole, "Role:", _cboRevokeRole,
+                new CheckBox { Text = "(Thu hồi không có option bổ sung)", Dock = DockStyle.Fill, Enabled = false, AutoSize = false },
+                _btnRevokeRole);
 
-            _grpRevokeObjPriv = new GroupBox { Text = "③ Thu hồi quyền trên đối tượng (để trống Columns = thu hồi toàn object)", Dock = DockStyle.Fill, Padding = new Padding(10, 18, 10, 10) };
-            var pnlObj = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
-            pnlObj.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
-            pnlObj.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            pnlObj.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+            _grpRevokeObjPriv = new GroupBox
+            {
+                Text = "③ Thu hồi quyền trên đối tượng. Để trống \"Columns\" = thu hồi trên toàn object.",
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12, 20, 12, 12),
+                Font = new Font("Segoe UI Semibold", 9.25f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(33, 64, 107)
+            };
 
-            _cboRevokeObjType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRevokeObjType = NewAutoCombo();
             _cboRevokeObjType.Items.AddRange(new object[] { "TABLE", "VIEW", "PROCEDURE", "FUNCTION" });
             _cboRevokeObjType.SelectedIndex = 0;
 
-            _cboRevokeObjPriv = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboRevokeObjPriv = NewAutoCombo();
             _cboRevokeObjType.SelectedIndexChanged += (s, e) => PopulateObjectPrivileges(_cboRevokeObjType, _cboRevokeObjPriv);
             PopulateObjectPrivileges(_cboRevokeObjType, _cboRevokeObjPriv);
 
-            _txtRevokeObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES" };
-            _txtRevokeObjCols = new TextBox { Dock = DockStyle.Fill };
-            _btnRevokeObj = DangerButton("Thu hồi quyền object");
-            _btnRevokeObj.Dock = DockStyle.Fill;
-            _tips.SetToolTip(_txtRevokeObjCols, "Chỉ có tác dụng với SELECT/UPDATE. Để trống = thu hồi quyền trên toàn object.");
+            _txtRevokeObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES", Font = new Font("Consolas", 9.5f) };
+            _txtRevokeObjCols = new TextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 9.5f) };
+            _btnRevokeObj = PrimaryButton("Thu hồi quyền object");
             _btnRevokeObj.Click += async (s, e) => await RevokeObjAsync();
+            _tips.SetToolTip(_txtRevokeObjCols, "Chỉ có tác dụng với SELECT/UPDATE. Để trống = thu hồi quyền trên toàn object.");
 
-            pnlObj.Controls.Add(new Label { Text = "Object type", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 0);
-            pnlObj.Controls.Add(_cboRevokeObjType, 1, 0);
-            pnlObj.Controls.Add(new Label { Text = "Privilege", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 1);
-            pnlObj.Controls.Add(_cboRevokeObjPriv, 1, 1);
-            pnlObj.Controls.Add(new Label { Text = "Object (OWNER.OBJECT)", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 2);
-            pnlObj.Controls.Add(_txtRevokeObjName, 1, 2);
-            pnlObj.Controls.Add(new Label { Text = "Columns (CSV)", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 3);
-            pnlObj.Controls.Add(_txtRevokeObjCols, 1, 3);
-            pnlObj.Controls.Add(_btnRevokeObj, 1, 4);
+            _grpRevokeObjPriv.Controls.Add(BuildObjectPrivPanel(
+                _cboRevokeObjType, _cboRevokeObjPriv, _txtRevokeObjName, _txtRevokeObjCols, null, _btnRevokeObj));
 
-            _grpRevokeObjPriv.Controls.Add(pnlObj);
-
-            layout.Controls.Add(top, 0, 0);
             layout.Controls.Add(_grpRevokeSysPriv, 0, 1);
             layout.Controls.Add(_grpRevokeRole, 0, 2);
             layout.Controls.Add(_grpRevokeObjPriv, 0, 3);
 
             tab.Controls.Add(layout);
-            tab.Enter += async (s, e) => await EnsurePrivilegeListsLoadedAsync();
+            bool revokeLoaded = false;
+            tab.Enter += async (s, e) =>
+            {
+                await EnsurePrivilegeListsLoadedAsync();
+                if (revokeLoaded) return;
+                revokeLoaded = true;
+                await LoadGranteesAsync();
+            };
             return tab;
         }
 
@@ -609,14 +698,14 @@ namespace WindowsFormsApp1
 
             var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
             top.Controls.Add(new Label { Text = "Schema (Owner):", AutoSize = true, Padding = new Padding(0, 10, 4, 0) });
-            _cboOwner = new ComboBox { Width = 240, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboOwner = new ComboBox { Width = 240, DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
             top.Controls.Add(_cboOwner);
             var btnLoadOwners = new Button { Text = "↻ Tải owners", Width = 130, Height = 28, BackColor = Color.White, FlatStyle = FlatStyle.Flat };
             btnLoadOwners.Click += async (s, e) => await LoadOwnersAsync();
             top.Controls.Add(btnLoadOwners);
 
             top.Controls.Add(new Label { Text = "Loại đối tượng:", AutoSize = true, Padding = new Padding(15, 10, 4, 0) });
-            _cboObjectType = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList };
+            _cboObjectType = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDown, AutoCompleteMode = AutoCompleteMode.SuggestAppend, AutoCompleteSource = AutoCompleteSource.ListItems };
             _cboObjectType.Items.AddRange(new object[] { "TABLE", "VIEW", "PROCEDURE", "FUNCTION" });
             _cboObjectType.SelectedIndex = 0;
             top.Controls.Add(_cboObjectType);
@@ -636,6 +725,15 @@ namespace WindowsFormsApp1
             root.Controls.Add(top, 0, 0);
             root.Controls.Add(grids, 0, 1);
             tab.Controls.Add(root);
+
+            bool ownersLoaded = false;
+            tab.Enter += async (s, e) =>
+            {
+                if (ownersLoaded) return;
+                ownersLoaded = true;
+                await LoadOwnersAsync();
+            };
+
             return tab;
         }
 
