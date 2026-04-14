@@ -52,7 +52,7 @@
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Oracle.ManagedDataAccess">
-      <HintPath>packages\Oracle.ManagedDataAccess.23.26.100\lib\net472\Oracle.ManagedDataAccess.dll</HintPath>
+      <HintPath>..\packages\Oracle.ManagedDataAccess.19.19.0\lib\net40\Oracle.ManagedDataAccess.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
