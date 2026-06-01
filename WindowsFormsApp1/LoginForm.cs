@@ -14,6 +14,7 @@ namespace WindowsFormsApp1
 
         public string ConnectionString { get; private set; }
         public bool IsBypassMode { get; private set; }
+        public string UserRole { get; private set; }
 
         public LoginForm()
         {
@@ -58,6 +59,7 @@ namespace WindowsFormsApp1
                 {
                     IsBypassMode = true;
                     ConnectionString = BYPASS_CONNECTION_STRING;
+                    UserRole = "DBA"; // Mặc định DBA trong chế độ bypass
                     MessageBox.Show(this,
                         "Đăng nhập bypass thành công. Ứng dụng sẽ mở ở chế độ XEM TRƯỚC (không kết nối Oracle).\n" +
                         "Các thao tác truy vấn/grant/revoke sẽ báo lỗi vì không có Oracle thật.",
@@ -71,6 +73,25 @@ namespace WindowsFormsApp1
                 var cs = txtPreview.Text;
                 await OracleDb.TestConnectionAsync(cs);
                 ConnectionString = cs;
+
+                // Xác định vai trò của người dùng từ CSDL Oracle
+                try
+                {
+                    var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM SYS.V_MY_ACCOUNT");
+                    if (dt != null && dt.Rows.Count > 0)
+                    {
+                        UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString() ?? "DBA";
+                    }
+                    else
+                    {
+                        UserRole = "DBA";
+                    }
+                }
+                catch
+                {
+                    UserRole = "DBA"; // Mặc định là DBA nếu đăng nhập bằng SYSDBA hoặc xảy ra lỗi
+                }
+
                 DialogResult = DialogResult.OK;
                 Close();
             }

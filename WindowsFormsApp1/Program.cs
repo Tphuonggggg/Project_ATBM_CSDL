@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,7 +21,27 @@ namespace WindowsFormsApp1
                 if (login.ShowDialog() != DialogResult.OK)
                     return;
 
-                Application.Run(new MainForm(login.ConnectionString));
+                Form mainForm;
+                switch (login.UserRole)
+                {
+                    case "Bệnh nhân":
+                        mainForm = new PatientForm(login.ConnectionString);
+                        break;
+                    case "Kỹ thuật viên":
+                        mainForm = new TechnicianForm(login.ConnectionString);
+                        break;
+                    case "Bác sĩ/Y sĩ":
+                        mainForm = new DoctorForm(login.ConnectionString);
+                        break;
+                    case "Điều phối viên":
+                        mainForm = new CoordinatorForm(login.ConnectionString);
+                        break;
+                    default:
+                        mainForm = new MainForm(login.ConnectionString);
+                        break;
+                }
+
+                Application.Run(mainForm);
             }
         }
     }
