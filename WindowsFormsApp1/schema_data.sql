@@ -2,8 +2,13 @@
 -- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
 -- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
 -- FILE 01: HOAN THIEN SCHEMA + SAMPLE DATA
--- Luu y: File nay CHI tao schema va du lieu mau, KHONG tao user/role.
--- Chay truoc file User/role.sql
+-- 
+-- HƯỚNG DẪN CHẠY SCRIPT:
+--   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
+--   2. Thực thi file này để khởi tạo cấu trúc bảng và nạp dữ liệu mẫu.
+-- 
+-- Lưu ý: File này chỉ tạo schema và dữ liệu mẫu, không tạo user/role.
+-- Chạy TRƯỚC file role.sql.
 -- =============================================================
 
 SET DEFINE OFF;

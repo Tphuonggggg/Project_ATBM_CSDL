@@ -2,11 +2,17 @@
 -- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
 -- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
 -- FILE 02: TAO USER / ROLE
--- Luu y:
---   1. Chay SAU file Script_SQL_completed_schema_data.sql
---   2. Chay bang user co quyen CREATE USER, CREATE ROLE, GRANT ANY ROLE
---   3. File nay CHI tao user/role va gan role. KHONG cap quyen nghiep vu tren bang.
---   4. Password demo cua tat ca user: ATBM123
+-- 
+-- HƯỚNG DẪN CHẠY SCRIPT:
+--   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
+--   2. Thực thi file này để khởi tạo các vai trò (roles) và tự động tạo hàng trăm tài khoản nhân viên/bệnh nhân.
+--   3. Lệnh chạy: @d:\CODE\Project_ATBM\Project_ATBM_CSDL\WindowsFormsApp1\role.sql
+-- 
+-- Lưu ý:
+--   - Chạy SAU file schema_data.sql.
+--   - Chạy bằng user có quyền quản trị như ATBM_ADMIN (đã được cấp DBA).
+--   - File này chỉ tạo user/role và gán role. Không cấp quyền nghiệp vụ trực tiếp trên bảng.
+--   - Mật khẩu mặc định cho toàn bộ các tài khoản tạo ra: ATBM123
 -- =============================================================
 
 SET DEFINE OFF;

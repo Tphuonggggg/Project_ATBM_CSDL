@@ -3,6 +3,14 @@
 -- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
 -- FILE: RBAC.sql
 -- CẤU HÌNH CƠ CHẾ KIỂM SOÁT TRUY CẬP DỰA TRÊN VAI TRÒ (RBAC VÀ VIEW)
+-- 
+-- HƯỚNG DẪN CHẠY SCRIPT:
+--   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
+--   2. Thực thi file này để tạo các View bảo mật lọc dữ liệu mức dòng và cấp quyền chọn lọc cột cho các vai trò.
+--   3. Lệnh chạy: @d:\CODE\Project_ATBM\Project_ATBM_CSDL\WindowsFormsApp1\RBAC.sql
+-- 
+-- Lưu ý:
+--   - Chạy SAU file role.sql.
 -- =============================================================
 
 -- =============================================================
