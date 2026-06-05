@@ -2,7 +2,67 @@
 -- STORED PROCEDURES FOR ORACLE DB ADMIN SERVICE
 -- =====================================================
 
--- ===== USER MANAGEMENT PROCEDURES =====
+SET DEFINE OFF;
+SET SERVEROUTPUT ON;
+
+-- 1. Chuyển container sang PDB XEPDB1 để thao tác chính xác (Sửa lỗi ORA-12425/CDB)
+ALTER SESSION SET CONTAINER = XEPDB1;
+
+PROMPT ===== BƯỚC 1: DỌN DẸP CÁC PROCEDURE BỊ TẠO NHẦM DƯỚI SCHEMA SYS =====
+DECLARE
+    PROCEDURE drop_proc_sys(p_name VARCHAR2) IS
+    BEGIN
+        EXECUTE IMMEDIATE 'DROP PROCEDURE SYS.' || p_name;
+        DBMS_OUTPUT.PUT_LINE('Dropped procedure SYS.' || p_name);
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL; -- Bỏ qua nếu không tồn tại
+    END;
+BEGIN
+    drop_proc_sys('sp_create_user');
+    drop_proc_sys('sp_alter_user_password');
+    drop_proc_sys('sp_drop_user');
+    drop_proc_sys('sp_set_user_lock');
+    drop_proc_sys('sp_create_role');
+    drop_proc_sys('sp_drop_role');
+    drop_proc_sys('sp_grant_role');
+    drop_proc_sys('sp_revoke_role');
+    drop_proc_sys('sp_grant_system_privilege');
+    drop_proc_sys('sp_revoke_system_privilege');
+    drop_proc_sys('sp_grant_object_privilege');
+    drop_proc_sys('sp_revoke_object_privilege');
+END;
+/
+
+PROMPT ===== BƯỚC 2: KHỞI TẠO USER QUẢN TRỊ CQ09 VÀ CẤP CÁC QUYỀN CẦN THIẾT =====
+DECLARE
+    v_count INT;
+BEGIN
+    SELECT COUNT(*) INTO v_count FROM DBA_USERS WHERE USERNAME = 'CQ09';
+    IF v_count = 0 THEN
+        EXECUTE IMMEDIATE 'CREATE USER CQ09 IDENTIFIED BY "ATBM123" DEFAULT TABLESPACE USERS TEMPORARY TABLESPACE TEMP';
+        DBMS_OUTPUT.PUT_LINE('Created administrative user: CQ09');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('User CQ09 already exists.');
+    END IF;
+    
+    -- Cấp vai trò DBA và các quyền trực tiếp hệ thống (cần thiết cho Definer''s Rights trong Procedure)
+    EXECUTE IMMEDIATE 'GRANT DBA TO CQ09';
+    EXECUTE IMMEDIATE 'GRANT CREATE USER, ALTER USER, DROP USER TO CQ09 WITH ADMIN OPTION';
+    EXECUTE IMMEDIATE 'GRANT CREATE ROLE, DROP ANY ROLE TO CQ09 WITH ADMIN OPTION';
+    EXECUTE IMMEDIATE 'GRANT GRANT ANY PRIVILEGE, GRANT ANY ROLE TO CQ09 WITH ADMIN OPTION';
+    EXECUTE IMMEDIATE 'GRANT GRANT ANY OBJECT PRIVILEGE TO CQ09 WITH ADMIN OPTION';
+    EXECUTE IMMEDIATE 'GRANT SELECT ANY DICTIONARY TO CQ09';
+    EXECUTE IMMEDIATE 'ALTER USER CQ09 QUOTA UNLIMITED ON USERS';
+    
+    DBMS_OUTPUT.PUT_LINE('Granted DBA and direct administrative privileges to CQ09 successfully.');
+END;
+/
+
+PROMPT ===== BƯỚC 3: CHUYỂN SCHEMA HIỆN TẠI SANG CQ09 ĐỂ TẠO CÁC PROCEDURE DƯỚI CQ09 =====
+ALTER SESSION SET CURRENT_SCHEMA = CQ09;
+
+-- ===== USER MANAGEMENT PROCEDURES DƯỚI SCHEMA CQ09 =====
 
 -- Create a new user
 CREATE OR REPLACE PROCEDURE sp_create_user(
@@ -15,7 +75,11 @@ BEGIN
     p_result := 0;
     p_error_msg := '';
     
+    -- Tạo user mới
     EXECUTE IMMEDIATE 'CREATE USER "' || REPLACE(p_username, '"', '""') || '" IDENTIFIED BY "' || REPLACE(p_password, '"', '""') || '"';
+    
+    -- Cấp quyền kết nối (CREATE SESSION) ngay lập tức để user có thể đăng nhập
+    EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO "' || REPLACE(p_username, '"', '""') || '"';
     
     p_result := 1;
 EXCEPTION

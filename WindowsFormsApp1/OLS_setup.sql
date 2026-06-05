@@ -15,10 +15,7 @@
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
 
--- Tự động chuyển sang container PDB XEPDB1 để tránh chạy trên CDB$ROOT (Sửa lỗi ORA-12425)
-ALTER SESSION SET CONTAINER = XEPDB1;
-
-PROMPT ===== BƯỚC PHỤ: CẤP QUYỀN THỪA KẾ PRIVILEGES CHO LBACSYS (SỬA LỖI ORA-06598) =====
+PROMPT ===== CẤP QUYỀN THỪA KẾ PRIVILEGES CHO LBACSYS =====
 BEGIN
     EXECUTE IMMEDIATE 'GRANT INHERIT PRIVILEGES ON USER SYS TO LBACSYS';
     DBMS_OUTPUT.PUT_LINE('Granted INHERIT PRIVILEGES on SYS to LBACSYS successfully.');
@@ -28,7 +25,7 @@ EXCEPTION
 END;
 /
 
-PROMPT ===== 1. TẠO CHÍNH SÁCH BẢO MẬT OLS (OLS POLICY) =====
+PROMPT ===== TẠO CHÍNH SÁCH BẢO MẬT OLS (OLS POLICY) =====
 DECLARE
     v_count INT;
 BEGIN
@@ -47,9 +44,9 @@ END;
 /
 
 
-PROMPT ===== 2. TẠO CÁC THÀNH PHẦN NHÃN (LEVELS, COMPARTMENTS, GROUPS) =====
+PROMPT ===== TẠO CÁC THÀNH PHẦN NHÃN (LEVELS, COMPARTMENTS, GROUPS) =====
 BEGIN
-    -- 2.1. Thiết lập Cấp độ (LEVELS)
+    -- Thiết lập Cấp độ (LEVELS)
     BEGIN
         LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 30, 'GD', 'Ban Giam Doc');
         LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 20, 'LD', 'Lanh Dao Khoa');
@@ -60,7 +57,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('OLS Levels already exist or unique constraint violated. Skipping.');
     END;
 
-    -- 2.2. Thiết lập Bộ phận/Khoa (COMPARTMENTS)
+    -- Thiết lập Bộ phận/Khoa (COMPARTMENTS)
     BEGIN
         LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 100, 'TH', 'Khoa Tieu Hoa');
         LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 200, 'TK', 'Khoa Than Kinh');
@@ -71,7 +68,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('OLS Compartments already exist. Skipping.');
     END;
 
-    -- 2.3. Thiết lập Địa lý/Cơ sở (GROUPS)
+    -- Thiết lập Địa lý/Cơ sở (GROUPS)
     BEGIN
         LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 1000, 'HCM', 'Co so Ho Chi Minh');
         LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 2000, 'HP', 'Co so Hai Phong');
@@ -85,7 +82,7 @@ END;
 /
 
 
-PROMPT ===== 3. ĐỊNH NGHĨA DANH SÁCH NHÃN HỢP LỆ (DATA LABELS) =====
+PROMPT ===== ĐỊNH NGHĨA DANH SÁCH NHÃN HỢP LỆ (DATA LABELS) =====
 BEGIN
     BEGIN
         LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 100, 'NV');
@@ -120,7 +117,7 @@ END;
 /
 
 
-PROMPT ===== 4. ÁP DỤNG CHÍNH SÁCH OLS LÊN BẢNG CQ09.THONGBAO =====
+PROMPT ===== ÁP DỤNG CHÍNH SÁCH OLS LÊN BẢNG CQ09.THONGBAO =====
 DECLARE
     v_applied INT;
 BEGIN
@@ -144,7 +141,7 @@ END;
 /
 
 
-PROMPT ===== 5. TẠO CÁC USER NGHIỆP VỤ ĐỂ DEMO OLS (u1 -> u8) =====
+PROMPT ===== TẠO CÁC USER NGHIỆP VỤ ĐỂ DEMO OLS (u1 -> u8) =====
 DECLARE
     PROCEDURE create_demo_user(p_user VARCHAR2) IS
         v_user_count INT;
@@ -171,14 +168,14 @@ END;
 /
 
 
-PROMPT ===== 6. GÁN NHÃN VÀ ĐẶC QUYỀN CHO NGƯỜI DÙNG (USER LABELS & PRIVILEGES) =====
+PROMPT ===== GÁN NHÃN VÀ ĐẶC QUYỀN CHO NGƯỜI DÙNG (USER LABELS & PRIVILEGES) =====
 DECLARE
     v_con_name VARCHAR2(100);
 BEGIN
     SELECT sys_context('USERENV', 'CON_NAME') INTO v_con_name FROM dual;
     DBMS_OUTPUT.PUT_LINE('Current DB Container context: ' || v_con_name);
 
-    -- 6.1. Gán nhãn đọc ghi OLS cho các user từ u1 -> u8
+    -- Gán nhãn đọc ghi OLS cho các user từ u1 -> u8
     BEGIN
         LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u1', 'GD:TH,TK,TM:HCM,HP,HN');
         LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u2', 'LD:TM:HCM');
@@ -194,7 +191,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('Warning: Could not set OLS labels for users: ' || SQLERRM);
     END;
     
-    -- 6.2. Cấp đặc quyền 'FULL' OLS cho CQ09
+    -- Cấp đặc quyền 'FULL' OLS cho CQ09
     BEGIN
         LBACSYS.SA_USER_ADMIN.SET_USER_PRIVS('OLS_THONGBAO_POLICY', 'CQ09', 'FULL');
         DBMS_OUTPUT.PUT_LINE('Granted OLS FULL privilege to CQ09 successfully.');
@@ -203,7 +200,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('Warning: Could not set OLS FULL privilege for CQ09: ' || SQLERRM);
     END;
     
-    -- 6.3. Cấp trực tiếp các quyền hệ thống cho CQ09 để thực hiện Phân hệ 1 (Tránh lỗi ORA-01031 trong PL/SQL DDL)
+    -- Cấp trực tiếp các quyền hệ thống cho CQ09 để thực hiện Phân hệ 1 (Tránh lỗi ORA-01031 trong PL/SQL DDL)
     BEGIN
         EXECUTE IMMEDIATE 'GRANT CREATE USER, ALTER USER, DROP USER TO CQ09 WITH ADMIN OPTION';
         EXECUTE IMMEDIATE 'GRANT CREATE ROLE, DROP ANY ROLE TO CQ09 WITH ADMIN OPTION';
@@ -218,7 +215,7 @@ END;
 /
 
 
-PROMPT ===== 7. NẠP DỮ LIỆU THÔNG BÁO VỚI NHÃN BẢO MẬT (t1 -> t7) =====
+PROMPT ===== NẠP DỮ LIỆU THÔNG BÁO VỚI NHÃN BẢO MẬT (t1 -> t7) =====
 
 -- Tạm thời tắt chính sách bảo mật OLS trên bảng CQ09.THONGBAO để nạp dữ liệu mẫu
 BEGIN
