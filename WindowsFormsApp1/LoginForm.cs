@@ -84,12 +84,40 @@ namespace WindowsFormsApp1
                     }
                     else
                     {
+                        var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
+                        if (userLower != "sys" && userLower != "system" && userLower != "cq09")
+                        {
+                            MessageBox.Show(this,
+                                $"Không tìm thấy thông tin nhân viên/bệnh nhân cho tài khoản '{txtUser.Text}' trong bảng dữ liệu.\n" +
+                                $"Vui lòng kiểm tra xem bạn đã chạy nạp dữ liệu mẫu (schema_data.sql) chưa.\n\n" +
+                                $"Hệ thống sẽ chuyển sang giao diện quản trị (DBA).",
+                                "Cảnh báo dữ liệu trống",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+                        }
                         UserRole = "DBA";
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    UserRole = "DBA"; // Mặc định là DBA nếu đăng nhập bằng SYSDBA hoặc xảy ra lỗi
+                    // Nếu là user SYS hoặc SYSTEM đăng nhập, mặc định là DBA mà không báo lỗi
+                    var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
+                    if (userLower == "sys" || userLower == "system")
+                    {
+                        UserRole = "DBA";
+                    }
+                    else
+                    {
+                        // Hiển thị lỗi chi tiết để nhà phát triển/người dùng biết chính xác nguyên nhân
+                        MessageBox.Show(this,
+                            $"Không thể xác định vai trò người dùng từ CQ09.V_MY_ACCOUNT.\n" +
+                            $"Chi tiết lỗi: {ex.Message}\n\n" +
+                            $"Hệ thống sẽ tạm thời chuyển sang giao diện quản trị (DBA).",
+                            "Cảnh báo cấu hình hệ thống",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Warning);
+                        UserRole = "DBA";
+                    }
                 }
 
                 DialogResult = DialogResult.OK;

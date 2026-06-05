@@ -13,6 +13,13 @@
 --   - Chạy SAU file role.sql.
 -- =============================================================
 
+SET DEFINE OFF;
+SET SERVEROUTPUT ON;
+
+-- Chuyển sang container XEPDB1 và schema CQ09 để thiết lập chính sách RBAC bảo mật
+ALTER SESSION SET CONTAINER = XEPDB1;
+ALTER SESSION SET CURRENT_SCHEMA = CQ09;
+
 -- =============================================================
 -- 1. RBAC CHO BỆNH NHÂN (TC#5)
 -- Bệnh nhân chỉ xem được thông tin của chính mình (qua view)

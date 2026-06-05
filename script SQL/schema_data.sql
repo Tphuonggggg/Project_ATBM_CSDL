@@ -57,7 +57,7 @@ BEGIN
         SELECT sequence_name FROM all_sequences
         WHERE sequence_owner = SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA')
           AND sequence_name IN ('SEQ_NHANVIEN','SEQ_BENHNHAN','SEQ_HSBA','SEQ_THONGBAO')
-        ) LOOP
+    ) LOOP
         EXECUTE IMMEDIATE 'DROP SEQUENCE ' || s.sequence_name;
         DBMS_OUTPUT.PUT_LINE('Dropped sequence: ' || s.sequence_name);
     END LOOP;

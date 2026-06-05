@@ -18,6 +18,10 @@
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
 
+-- Chuyển sang container XEPDB1 và schema CQ09 để thiết lập vai trò & phân quyền chuẩn xác
+ALTER SESSION SET CONTAINER = XEPDB1;
+ALTER SESSION SET CURRENT_SCHEMA = CQ09;
+
 PROMPT ===== 1. TAO LAI CAC ROLE PHAN HE 2 =====
 
 DECLARE
