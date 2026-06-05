@@ -15,6 +15,7 @@ namespace WindowsFormsApp1
         public string ConnectionString { get; private set; }
         public bool IsBypassMode { get; private set; }
         public string UserRole { get; private set; }
+        public string Username => txtUser.Text?.Trim();
 
         public LoginForm()
         {
@@ -77,25 +78,32 @@ namespace WindowsFormsApp1
                 // Xác định vai trò của người dùng từ CSDL Oracle
                 try
                 {
-                    var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM CQ09.V_MY_ACCOUNT");
-                    if (dt != null && dt.Rows.Count > 0)
+                    var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
+                    if (System.Text.RegularExpressions.Regex.IsMatch(userLower, "^u[1-8]$"))
                     {
-                        UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString() ?? "DBA";
+                        UserRole = "OLS_DEMO";
                     }
                     else
                     {
-                        var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
-                        if (userLower != "sys" && userLower != "system" && userLower != "cq09")
+                        var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM CQ09.V_MY_ACCOUNT");
+                        if (dt != null && dt.Rows.Count > 0)
                         {
-                            MessageBox.Show(this,
-                                $"Không tìm thấy thông tin nhân viên/bệnh nhân cho tài khoản '{txtUser.Text}' trong bảng dữ liệu.\n" +
-                                $"Vui lòng kiểm tra xem bạn đã chạy nạp dữ liệu mẫu (schema_data.sql) chưa.\n\n" +
-                                $"Hệ thống sẽ chuyển sang giao diện quản trị (DBA).",
-                                "Cảnh báo dữ liệu trống",
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Warning);
+                            UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString() ?? "DBA";
                         }
-                        UserRole = "DBA";
+                        else
+                        {
+                            if (userLower != "sys" && userLower != "system" && userLower != "cq09")
+                            {
+                                MessageBox.Show(this,
+                                    $"Không tìm thấy thông tin nhân viên/bệnh nhân cho tài khoản '{txtUser.Text}' trong bảng dữ liệu.\n" +
+                                    $"Vui lòng kiểm tra xem bạn đã chạy nạp dữ liệu mẫu (schema_data.sql) chưa.\n\n" +
+                                    $"Hệ thống sẽ chuyển sang giao diện quản trị (DBA).",
+                                    "Cảnh báo dữ liệu trống",
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Warning);
+                            }
+                            UserRole = "DBA";
+                        }
                     }
                 }
                 catch (Exception ex)

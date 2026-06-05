@@ -36,6 +36,9 @@ namespace WindowsFormsApp1
                     case "Điều phối viên":
                         mainForm = new CoordinatorForm(login.ConnectionString);
                         break;
+                    case "OLS_DEMO":
+                        mainForm = new OlsDemoForm(login.ConnectionString, login.Username);
+                        break;
                     default:
                         mainForm = new MainForm(login.ConnectionString);
                         break;

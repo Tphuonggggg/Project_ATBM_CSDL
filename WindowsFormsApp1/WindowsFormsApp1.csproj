@@ -116,6 +116,7 @@
     <Compile Include="CoordinatorForm.Designer.cs">
       <DependentUpon>CoordinatorForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="OlsDemoForm.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
