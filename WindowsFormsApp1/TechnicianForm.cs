@@ -152,7 +152,7 @@ namespace WindowsFormsApp1
             // --- BÊN TRÁI: DANH SÁCH DỊCH VỤ ---
             var grpList = new GroupBox
             {
-                Text = "Danh sách dịch vụ cận lâm sàng được phân công (SYS.vw_ktv_HSBA_DV)",
+                Text = "Danh sách dịch vụ cận lâm sàng được phân công (CQ09.vw_ktv_HSBA_DV)",
                 Dock = DockStyle.Fill,
                 ForeColor = Color.FromArgb(33, 64, 107),
                 Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
@@ -272,7 +272,7 @@ namespace WindowsFormsApp1
             // --- BÊN TRÁI: HỒ SƠ CHI TIẾT ---
             var grpProfile = new GroupBox
             {
-                Text = "Thông tin chi tiết cán bộ nhân sự (SYS.vw_nhanvien_canhan)",
+                Text = "Thông tin chi tiết cán bộ nhân sự (CQ09.vw_nhanvien_canhan)",
                 Dock = DockStyle.Fill,
                 ForeColor = Color.FromArgb(33, 64, 107),
                 Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
@@ -385,7 +385,7 @@ namespace WindowsFormsApp1
             try
             {
                 // 1. Tải định danh KTV
-                var sqlIdentity = "SELECT MA_NGUOIDUNG, HOTEN FROM SYS.V_MY_ACCOUNT";
+                var sqlIdentity = "SELECT MA_NGUOIDUNG, HOTEN FROM CQ09.V_MY_ACCOUNT";
                 var dtId = await OracleSql.QueryAsync(_connectionString, sqlIdentity);
                 if (dtId != null && dtId.Rows.Count > 0)
                 {
@@ -422,7 +422,7 @@ namespace WindowsFormsApp1
                           "TO_CHAR(NGAYDV, 'DD/MM/YYYY') AS \"Ngày Chỉ Định\", " +
                           "MAKTV AS \"Mã KTV\", " +
                           "KETQUA AS \"Kết Quả\" " +
-                          "FROM SYS.vw_ktv_HSBA_DV " +
+                          "FROM CQ09.vw_ktv_HSBA_DV " +
                           "ORDER BY TO_DATE(\"Ngày Chỉ Định\", 'DD/MM/YYYY') DESC";
 
                 var dt = await OracleSql.QueryAsync(_connectionString, sql);
@@ -479,7 +479,7 @@ namespace WindowsFormsApp1
             _lblStatus.Text = "Đang cập nhật kết quả dịch vụ lên Oracle...";
             try
             {
-                var sql = "UPDATE SYS.vw_ktv_HSBA_DV SET " +
+                var sql = "UPDATE CQ09.vw_ktv_HSBA_DV SET " +
                           "KETQUA = " + OracleSql.QLit(ketQua) + " " +
                           "WHERE MAHSBA = " + OracleSql.QLit(maHSBA) + " " +
                           "AND LOAIDV = " + OracleSql.QLit(loaiDV) + " " +
@@ -516,7 +516,7 @@ namespace WindowsFormsApp1
             _lblStatus.Text = "Đang tải thông tin hồ sơ nhân sự từ Oracle...";
             try
             {
-                var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM SYS.vw_nhanvien_canhan";
+                var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.vw_nhanvien_canhan";
                 var dt = await OracleSql.QueryAsync(_connectionString, sql);
                 if (dt != null && dt.Rows.Count > 0)
                 {
@@ -559,7 +559,7 @@ namespace WindowsFormsApp1
             try
             {
                 // Cập nhật thông qua View cá nhân (được bảo mật mức dòng)
-                var sql = "UPDATE SYS.vw_nhanvien_canhan SET " +
+                var sql = "UPDATE CQ09.vw_nhanvien_canhan SET " +
                           "QUEQUAN = " + OracleSql.QLit(_txtEmpHometown.Text) + ", " +
                           "SODT = " + OracleSql.QLit(_txtEmpPhone.Text) + " " +
                           "WHERE MANV = " + OracleSql.QLit(_ktvId);

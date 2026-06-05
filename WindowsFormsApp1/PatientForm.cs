@@ -289,8 +289,8 @@ namespace WindowsFormsApp1
             _lblStatus.Text = "Đang tải hồ sơ bệnh nhân từ Oracle...";
             try
             {
-                // Truy vấn từ View bảo mật SYS.vw_benhnhan
-                var sql = "SELECT MABN, TENBN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CCCD, SONHA, TENDUONG, QUANHUYEN, TINHTP, TIENSUBENH, TIENSUBENHGD, DIUNGTHUOC FROM SYS.vw_benhnhan";
+                // Truy vấn từ View bảo mật CQ09.vw_benhnhan
+                var sql = "SELECT MABN, TENBN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CCCD, SONHA, TENDUONG, QUANHUYEN, TINHTP, TIENSUBENH, TIENSUBENHGD, DIUNGTHUOC FROM CQ09.vw_benhnhan";
                 var dt = await OracleSql.QueryAsync(_connectionString, sql);
 
                 if (dt != null && dt.Rows.Count > 0)
@@ -345,8 +345,8 @@ namespace WindowsFormsApp1
             _lblStatus.Text = "Đang lưu thay đổi xuống Oracle...";
             try
             {
-                // Cập nhật thông qua View SYS.vw_benhnhan (sử dụng QLit để tránh SQL Injection)
-                var sql = "UPDATE SYS.vw_benhnhan SET " +
+                // Cập nhật thông qua View CQ09.vw_benhnhan (sử dụng QLit để tránh SQL Injection)
+                var sql = "UPDATE CQ09.vw_benhnhan SET " +
                           "SONHA = " + OracleSql.QLit(_txtSoNha.Text) + ", " +
                           "TENDUONG = " + OracleSql.QLit(_txtTenDuong.Text) + ", " +
                           "QUANHUYEN = " + OracleSql.QLit(_txtQuanHuyen.Text) + ", " +

@@ -77,7 +77,7 @@ namespace WindowsFormsApp1
                 // Xác định vai trò của người dùng từ CSDL Oracle
                 try
                 {
-                    var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM SYS.V_MY_ACCOUNT");
+                    var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM CQ09.V_MY_ACCOUNT");
                     if (dt != null && dt.Rows.Count > 0)
                     {
                         UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString() ?? "DBA";
