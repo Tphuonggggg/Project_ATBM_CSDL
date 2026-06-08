@@ -34,6 +34,16 @@ namespace WindowsFormsApp1
         private TextBox _txtSvcDate;
         private ComboBox _cboTechnician;
         private RichTextBox _txtSvcResult;
+        private DataGridView _gridPatients;
+        private TextBox _txtMedPatientId;
+        private TextBox _txtMedPatientName;
+        private TextBox _txtMedGender;
+        private TextBox _txtMedBirthDate;
+        private RichTextBox _txtMedicalHistory;
+        private RichTextBox _txtFamilyHistory;
+        private TextBox _txtDrugAllergy;
+        private Button _btnRefreshPatients;
+        private Button _btnSavePatientMedical;
         private Label _lblDoctor;
         private StatusStrip _statusStrip;
         private ToolStripStatusLabel _lblStatus;
@@ -58,6 +68,9 @@ namespace WindowsFormsApp1
         private TextBox _txtEmpPhone;
         private Button _btnRefreshProfile;
         private Button _btnSaveProfile;
+        private string _originalRxRecordId = "";
+        private string _originalRxDate = "";
+        private string _originalRxMedicine = "";
 
         public DoctorForm(string connectionString)
         {
@@ -107,6 +120,7 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildRecordTab());
             _tabs.TabPages.Add(BuildPrescriptionTab());
             _tabs.TabPages.Add(BuildServiceTab());
+            _tabs.TabPages.Add(BuildPatientTab());
             _tabs.TabPages.Add(BuildProfileTab());
 
             Controls.Add(_tabs);
@@ -177,7 +191,7 @@ namespace WindowsFormsApp1
 
         private TabPage BuildProfileTab()
         {
-            var tab = new TabPage("4. Ho so ca nhan") { Padding = new Padding(18), BackColor = Color.White };
+            var tab = new TabPage("5. Ho so ca nhan") { Padding = new Padding(18), BackColor = Color.White };
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
@@ -346,6 +360,68 @@ namespace WindowsFormsApp1
             return tab;
         }
 
+        private TabPage BuildPatientTab()
+        {
+            var tab = new TabPage("4. Benh nhan dieu tri") { Padding = new Padding(12), BackColor = Color.White };
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+
+            _gridPatients = CreateGrid();
+            _gridPatients.SelectionChanged += (s, e) => BindSelectedPatient();
+            layout.Controls.Add(CreateGroup("Danh sach benh nhan lien quan den ho so bac si phu trach", _gridPatients), 0, 0);
+
+            var detail = new GroupBox { Text = "Cap nhat tien su benh va di ung thuoc", Dock = DockStyle.Fill, Padding = new Padding(12, 18, 12, 12), ForeColor = Color.FromArgb(33, 64, 107), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) };
+            var form = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 12 };
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (var i = 0; i < 4; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            form.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            form.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            form.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+
+            _txtMedPatientId = ReadOnlyText();
+            _txtMedPatientName = ReadOnlyText();
+            _txtMedGender = ReadOnlyText();
+            _txtMedBirthDate = ReadOnlyText();
+            _txtMedicalHistory = EditorBox();
+            _txtFamilyHistory = EditorBox();
+            _txtDrugAllergy = new TextBox { Dock = DockStyle.Fill };
+
+            AddRow(form, "Ma BN:", _txtMedPatientId, 0);
+            AddRow(form, "Ho ten:", _txtMedPatientName, 1);
+            AddRow(form, "Phai:", _txtMedGender, 2);
+            AddRow(form, "Ngay sinh:", _txtMedBirthDate, 3);
+            AddWide(form, "Tien su benh:", _txtMedicalHistory, 4);
+            AddWide(form, "Tien su benh gia dinh:", _txtFamilyHistory, 6);
+            form.Controls.Add(new Label { Text = "Di ung thuoc:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 8);
+            form.SetColumnSpan(form.GetControlFromPosition(0, 8), 2);
+            form.Controls.Add(_txtDrugAllergy, 0, 9);
+            form.SetColumnSpan(_txtDrugAllergy, 2);
+
+            var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0, 8, 0, 0) };
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            _btnRefreshPatients = SecondaryButton("Tai lai");
+            _btnSavePatientMedical = PrimaryButton("Luu benh su");
+            _btnRefreshPatients.Click += async (s, e) => await LoadPatientsAsync();
+            _btnSavePatientMedical.Click += async (s, e) => await SavePatientMedicalAsync();
+            actions.Controls.Add(_btnRefreshPatients, 0, 0);
+            actions.Controls.Add(_btnSavePatientMedical, 1, 0);
+            form.Controls.Add(actions, 0, 11);
+            form.SetColumnSpan(actions, 2);
+
+            detail.Controls.Add(form);
+            layout.Controls.Add(detail, 1, 0);
+            tab.Controls.Add(layout);
+            return tab;
+        }
+
         private async Task InitAsync()
         {
             SetBusy(true);
@@ -363,6 +439,7 @@ namespace WindowsFormsApp1
                 await LoadRecordsAsync();
                 await LoadPrescriptionsAsync();
                 await LoadServicesAsync();
+                await LoadPatientsAsync();
                 await LoadProfileAsync();
             }
             catch (Exception ex)
@@ -427,10 +504,15 @@ namespace WindowsFormsApp1
                 string sql;
                 if (update)
                 {
-                    sql = "UPDATE CQ09.VW_BACSI_DONTHUOC SET LIEUDUNG = " + OracleSql.QLit(_txtDosage.Text) + " " +
-                          "WHERE MAHSBA = " + OracleSql.QLit(_txtRxRecordId.Text) + " " +
-                          "AND NGAYDT = " + ngayDt + " " +
-                          "AND TENTHUOC = " + OracleSql.QLit(_txtMedicine.Text);
+                    var oldDate = ToOracleDate(string.IsNullOrWhiteSpace(_originalRxDate) ? _txtRxDate.Text : _originalRxDate, "Ngay DT", false);
+                    if (oldDate == null) return;
+
+                    sql = "UPDATE CQ09.VW_BACSI_DONTHUOC SET " +
+                          "TENTHUOC = " + OracleSql.QLit(_txtMedicine.Text) + ", " +
+                          "LIEUDUNG = " + OracleSql.QLit(_txtDosage.Text) + " " +
+                          "WHERE MAHSBA = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalRxRecordId) ? _txtRxRecordId.Text : _originalRxRecordId) + " " +
+                          "AND NGAYDT = " + oldDate + " " +
+                          "AND TENTHUOC = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalRxMedicine) ? _txtMedicine.Text : _originalRxMedicine);
                 }
                 else
                 {
@@ -442,6 +524,9 @@ namespace WindowsFormsApp1
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadPrescriptionsAsync();
                 _lblStatus.Text = update ? "Da cap nhat don thuoc." : "Da them thuoc.";
+                _originalRxRecordId = _txtRxRecordId.Text;
+                _originalRxDate = _txtRxDate.Text;
+                _originalRxMedicine = _txtMedicine.Text;
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }
@@ -486,6 +571,41 @@ namespace WindowsFormsApp1
                       "ORDER BY dv.NGAYDV DESC, dv.MAHSBA, dv.LOAIDV";
             _gridServices.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
             BindSelectedService();
+        }
+
+        private async Task LoadPatientsAsync()
+        {
+            _lblStatus.Text = "Dang tai danh sach benh nhan cua bac si...";
+            var sql = "SELECT MABN, TENBN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CCCD, " +
+                      "SONHA, TENDUONG, QUANHUYEN, TINHTP, TIENSUBENH, TIENSUBENHGD, DIUNGTHUOC " +
+                      "FROM CQ09.VW_BACSI_BENHNHAN ORDER BY TENBN, MABN";
+            _gridPatients.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
+            _lblStatus.Text = $"Da tai {_gridPatients.Rows.Count} benh nhan.";
+            BindSelectedPatient();
+        }
+
+        private async Task SavePatientMedicalAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_txtMedPatientId.Text))
+            {
+                MessageBox.Show(this, "Vui long chon benh nhan.", "Canh bao", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            SetBusy(true);
+            try
+            {
+                var sql = "UPDATE CQ09.VW_BACSI_BENHNHAN SET " +
+                          "TIENSUBENH = " + OracleSql.QLit(_txtMedicalHistory.Text) + ", " +
+                          "TIENSUBENHGD = " + OracleSql.QLit(_txtFamilyHistory.Text) + ", " +
+                          "DIUNGTHUOC = " + OracleSql.QLit(_txtDrugAllergy.Text) + " " +
+                          "WHERE MABN = " + OracleSql.QLit(_txtMedPatientId.Text);
+                var rows = await OracleSql.ExecuteAsync(_connectionString, sql);
+                _lblStatus.Text = rows > 0 ? "Da cap nhat benh su benh nhan." : "Khong co dong nao duoc cap nhat.";
+                await LoadPatientsAsync();
+            }
+            catch (Exception ex) { ShowError(ex); }
+            finally { SetBusy(false); }
         }
 
         private async Task SaveServiceAsync(bool update)
@@ -612,6 +732,9 @@ namespace WindowsFormsApp1
             _txtRxDate.Text = Cell(r, "NGAYDT");
             _txtMedicine.Text = Cell(r, "TENTHUOC");
             _txtDosage.Text = Cell(r, "LIEUDUNG");
+            _originalRxRecordId = _txtRxRecordId.Text;
+            _originalRxDate = _txtRxDate.Text;
+            _originalRxMedicine = _txtMedicine.Text;
         }
 
         private void BindSelectedService()
@@ -624,6 +747,19 @@ namespace WindowsFormsApp1
             _txtSvcResult.Text = Cell(r, "KETQUA");
             var ktv = Cell(r, "MAKTV");
             if (!string.IsNullOrWhiteSpace(ktv)) _cboTechnician.SelectedValue = ktv;
+        }
+
+        private void BindSelectedPatient()
+        {
+            if (_gridPatients.CurrentRow == null) return;
+            var r = _gridPatients.CurrentRow;
+            _txtMedPatientId.Text = Cell(r, "MABN");
+            _txtMedPatientName.Text = Cell(r, "TENBN");
+            _txtMedGender.Text = Cell(r, "PHAI");
+            _txtMedBirthDate.Text = Cell(r, "NGAYSINH");
+            _txtMedicalHistory.Text = Cell(r, "TIENSUBENH");
+            _txtFamilyHistory.Text = Cell(r, "TIENSUBENHGD");
+            _txtDrugAllergy.Text = Cell(r, "DIUNGTHUOC");
         }
 
         private bool ValidatePrescription()
