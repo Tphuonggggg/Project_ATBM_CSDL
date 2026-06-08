@@ -1,6 +1,7 @@
 using System;
 using System.Data;
 using System.Drawing;
+using System.Globalization;
 using System.Windows.Forms;
 using System.Threading.Tasks;
 
@@ -46,6 +47,17 @@ namespace WindowsFormsApp1
         private Button _btnUpdateSvc;
         private Button _btnDeleteSvc;
         private Button _btnRefreshSvc;
+        private TextBox _txtEmpId;
+        private TextBox _txtEmpName;
+        private TextBox _txtEmpGender;
+        private TextBox _txtEmpBirthDate;
+        private TextBox _txtEmpIdentity;
+        private TextBox _txtEmpRole;
+        private TextBox _txtEmpDept;
+        private TextBox _txtEmpHometown;
+        private TextBox _txtEmpPhone;
+        private Button _btnRefreshProfile;
+        private Button _btnSaveProfile;
 
         public DoctorForm(string connectionString)
         {
@@ -95,6 +107,7 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildRecordTab());
             _tabs.TabPages.Add(BuildPrescriptionTab());
             _tabs.TabPages.Add(BuildServiceTab());
+            _tabs.TabPages.Add(BuildProfileTab());
 
             Controls.Add(_tabs);
             Controls.Add(header);
@@ -158,6 +171,68 @@ namespace WindowsFormsApp1
             detail.Controls.Add(form);
             layout.Controls.Add(left, 0, 0);
             layout.Controls.Add(detail, 1, 0);
+            tab.Controls.Add(layout);
+            return tab;
+        }
+
+        private TabPage BuildProfileTab()
+        {
+            var tab = new TabPage("4. Ho so ca nhan") { Padding = new Padding(18), BackColor = Color.White };
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+
+            var detail = new GroupBox { Text = "Thong tin nhan su cua bac si dang dang nhap", Dock = DockStyle.Fill, Padding = new Padding(14, 20, 14, 14), ForeColor = Color.FromArgb(33, 64, 107), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) };
+            var form = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 10 };
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+            form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (var i = 0; i < 9; i++) form.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            form.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+
+            _txtEmpId = ReadOnlyText();
+            _txtEmpName = ReadOnlyText();
+            _txtEmpGender = ReadOnlyText();
+            _txtEmpBirthDate = ReadOnlyText();
+            _txtEmpIdentity = ReadOnlyText();
+            _txtEmpRole = ReadOnlyText();
+            _txtEmpDept = ReadOnlyText();
+            _txtEmpHometown = new TextBox { Dock = DockStyle.Fill };
+            _txtEmpPhone = new TextBox { Dock = DockStyle.Fill };
+
+            AddRow(form, "Ma nhan vien:", _txtEmpId, 0);
+            AddRow(form, "Ho ten:", _txtEmpName, 1);
+            AddRow(form, "Phai:", _txtEmpGender, 2);
+            AddRow(form, "Ngay sinh:", _txtEmpBirthDate, 3);
+            AddRow(form, "CMND/CCCD:", _txtEmpIdentity, 4);
+            AddRow(form, "Vai tro:", _txtEmpRole, 5);
+            AddRow(form, "Chuyen khoa:", _txtEmpDept, 6);
+            AddRow(form, "Que quan:", _txtEmpHometown, 7);
+            AddRow(form, "So dien thoai:", _txtEmpPhone, 8);
+
+            var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0, 8, 0, 0) };
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            _btnRefreshProfile = SecondaryButton("Tai lai");
+            _btnSaveProfile = PrimaryButton("Luu thong tin lien he");
+            _btnRefreshProfile.Click += async (s, e) => await LoadProfileAsync();
+            _btnSaveProfile.Click += async (s, e) => await SaveProfileAsync();
+            actions.Controls.Add(_btnRefreshProfile, 0, 0);
+            actions.Controls.Add(_btnSaveProfile, 1, 0);
+            form.Controls.Add(actions, 0, 9);
+            form.SetColumnSpan(actions, 2);
+            detail.Controls.Add(form);
+
+            var note = new GroupBox { Text = "Chinh sach VPD ap dung", Dock = DockStyle.Fill, Padding = new Padding(14, 20, 14, 14), ForeColor = Color.FromArgb(120, 50, 50), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) };
+            note.Controls.Add(new Label
+            {
+                Dock = DockStyle.Fill,
+                Text = "Bac si/Y si chi xem duoc ho so ca nhan cua chinh minh qua CQ09.VW_NHANVIEN_CANHAN va chi cap nhat QUEQUAN, SODT. Cac cot dinh danh, vai tro va chuyen khoa la chi doc theo policy VPD.",
+                ForeColor = Color.FromArgb(75, 80, 90),
+                Font = new Font("Segoe UI", 9.25f, FontStyle.Italic)
+            });
+
+            layout.Controls.Add(detail, 0, 0);
+            layout.Controls.Add(note, 1, 0);
             tab.Controls.Add(layout);
             return tab;
         }
@@ -288,6 +363,7 @@ namespace WindowsFormsApp1
                 await LoadRecordsAsync();
                 await LoadPrescriptionsAsync();
                 await LoadServicesAsync();
+                await LoadProfileAsync();
             }
             catch (Exception ex)
             {
@@ -302,7 +378,7 @@ namespace WindowsFormsApp1
         private async Task LoadRecordsAsync()
         {
             _lblStatus.Text = "Dang tai ho so benh an...";
-            var sql = "SELECT MAHSBA, MABN, TENBN, TO_CHAR(NGAY, 'DD/MM/YYYY') AS NGAY, MAKHOA, CHANDOAN, DIEUTRI, KETLUAN FROM CQ09.vw_bacsi_hsba ORDER BY NGAY DESC, MAHSBA";
+            var sql = "SELECT MAHSBA, MABN, TENBN, TO_CHAR(NGAY, 'DD/MM/YYYY') AS NGAY, MAKHOA, CHANDOAN, DIEUTRI, KETLUAN FROM CQ09.VW_BACSI_HSBA ORDER BY NGAY DESC, MAHSBA";
             _gridRecords.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
             _lblStatus.Text = $"Da tai {_gridRecords.Rows.Count} ho so benh an.";
             BindSelectedRecord();
@@ -319,7 +395,7 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var sql = "UPDATE CQ09.vw_bacsi_hsba SET " +
+                var sql = "UPDATE CQ09.VW_BACSI_HSBA SET " +
                           "CHANDOAN = " + OracleSql.QLit(_txtDiagnosis.Text) + ", " +
                           "DIEUTRI = " + OracleSql.QLit(_txtTreatment.Text) + ", " +
                           "KETLUAN = " + OracleSql.QLit(_txtConclusion.Text) + " " +
@@ -334,7 +410,7 @@ namespace WindowsFormsApp1
 
         private async Task LoadPrescriptionsAsync()
         {
-            var sql = "SELECT MAHSBA, TO_CHAR(NGAYDT, 'DD/MM/YYYY') AS NGAYDT, TENTHUOC, LIEUDUNG FROM CQ09.vw_bacsi_donthuoc ORDER BY NGAYDT DESC, MAHSBA, TENTHUOC";
+            var sql = "SELECT MAHSBA, TO_CHAR(NGAYDT, 'DD/MM/YYYY') AS NGAYDT, TENTHUOC, LIEUDUNG FROM CQ09.VW_BACSI_DONTHUOC ORDER BY NGAYDT DESC, MAHSBA, TENTHUOC";
             _gridPrescriptions.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
             BindSelectedPrescription();
         }
@@ -345,18 +421,21 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
+                var ngayDt = ToOracleDate(_txtRxDate.Text, "Ngay DT");
+                if (ngayDt == null) return;
+
                 string sql;
                 if (update)
                 {
-                    sql = "UPDATE CQ09.vw_bacsi_donthuoc SET LIEUDUNG = " + OracleSql.QLit(_txtDosage.Text) + " " +
+                    sql = "UPDATE CQ09.VW_BACSI_DONTHUOC SET LIEUDUNG = " + OracleSql.QLit(_txtDosage.Text) + " " +
                           "WHERE MAHSBA = " + OracleSql.QLit(_txtRxRecordId.Text) + " " +
-                          "AND NGAYDT = TO_DATE(" + OracleSql.QLit(_txtRxDate.Text) + ", 'DD/MM/YYYY') " +
+                          "AND NGAYDT = " + ngayDt + " " +
                           "AND TENTHUOC = " + OracleSql.QLit(_txtMedicine.Text);
                 }
                 else
                 {
-                    sql = "INSERT INTO CQ09.vw_bacsi_donthuoc(MAHSBA, NGAYDT, TENTHUOC, LIEUDUNG) VALUES (" +
-                          OracleSql.QLit(_txtRxRecordId.Text) + ", TO_DATE(" + OracleSql.QLit(_txtRxDate.Text) + ", 'DD/MM/YYYY'), " +
+                    sql = "INSERT INTO CQ09.VW_BACSI_DONTHUOC(MAHSBA, NGAYDT, TENTHUOC, LIEUDUNG) VALUES (" +
+                          OracleSql.QLit(_txtRxRecordId.Text) + ", " + ngayDt + ", " +
                           OracleSql.QLit(_txtMedicine.Text) + ", " + OracleSql.QLit(_txtDosage.Text) + ")";
                 }
 
@@ -375,8 +454,11 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var sql = "DELETE FROM CQ09.vw_bacsi_donthuoc WHERE MAHSBA = " + OracleSql.QLit(_txtRxRecordId.Text) +
-                          " AND NGAYDT = TO_DATE(" + OracleSql.QLit(_txtRxDate.Text) + ", 'DD/MM/YYYY')" +
+                var ngayDt = ToOracleDate(_txtRxDate.Text, "Ngay DT");
+                if (ngayDt == null) return;
+
+                var sql = "DELETE FROM CQ09.VW_BACSI_DONTHUOC WHERE MAHSBA = " + OracleSql.QLit(_txtRxRecordId.Text) +
+                          " AND NGAYDT = " + ngayDt +
                           " AND TENTHUOC = " + OracleSql.QLit(_txtMedicine.Text);
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadPrescriptionsAsync();
@@ -388,7 +470,7 @@ namespace WindowsFormsApp1
 
         private async Task LoadTechniciansAsync()
         {
-            var dt = await OracleSql.QueryAsync(_connectionString, "SELECT MANV, HOTEN FROM CQ09.vw_ktv_list ORDER BY MANV");
+            var dt = await OracleSql.QueryAsync(_connectionString, "SELECT MANV, HOTEN FROM CQ09.VW_KTV_LIST ORDER BY MANV");
             dt.Columns.Add("DISPLAY", typeof(string));
             foreach (DataRow r in dt.Rows) r["DISPLAY"] = $"{r["MANV"]} - {r["HOTEN"]}";
             _cboTechnician.DisplayMember = "DISPLAY";
@@ -398,7 +480,10 @@ namespace WindowsFormsApp1
 
         private async Task LoadServicesAsync()
         {
-            var sql = "SELECT MAHSBA, LOAIDV, TO_CHAR(NGAYDV, 'DD/MM/YYYY') AS NGAYDV, MAKTV, HOTEN_KTV, KETQUA FROM CQ09.vw_bacsi_hsba_dv ORDER BY NGAYDV DESC, MAHSBA, LOAIDV";
+            var sql = "SELECT dv.MAHSBA, dv.LOAIDV, TO_CHAR(dv.NGAYDV, 'DD/MM/YYYY') AS NGAYDV, dv.MAKTV, ktv.HOTEN AS HOTEN_KTV, dv.KETQUA " +
+                      "FROM CQ09.VW_BACSI_HSBA_DV dv " +
+                      "LEFT JOIN CQ09.VW_KTV_LIST ktv ON ktv.MANV = dv.MAKTV " +
+                      "ORDER BY dv.NGAYDV DESC, dv.MAHSBA, dv.LOAIDV";
             _gridServices.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
             BindSelectedService();
         }
@@ -410,19 +495,22 @@ namespace WindowsFormsApp1
             try
             {
                 var ktv = _cboTechnician.SelectedValue?.ToString() ?? "";
+                var ngayDv = ToOracleDate(_txtSvcDate.Text, "Ngay DV");
+                if (ngayDv == null) return;
+
                 string sql;
                 if (update)
                 {
-                    sql = "UPDATE CQ09.vw_bacsi_hsba_dv SET MAKTV = " + OracleSql.QLit(ktv) + " " +
+                    sql = "UPDATE CQ09.VW_BACSI_HSBA_DV SET MAKTV = " + OracleSql.QLit(ktv) + " " +
                           "WHERE MAHSBA = " + OracleSql.QLit(_txtSvcRecordId.Text) +
                           " AND LOAIDV = " + OracleSql.QLit(_txtSvcType.Text) +
-                          " AND NGAYDV = TO_DATE(" + OracleSql.QLit(_txtSvcDate.Text) + ", 'DD/MM/YYYY')";
+                          " AND NGAYDV = " + ngayDv;
                 }
                 else
                 {
-                    sql = "INSERT INTO CQ09.vw_bacsi_hsba_dv(MAHSBA, LOAIDV, NGAYDV, MAKTV, KETQUA) VALUES (" +
+                    sql = "INSERT INTO CQ09.VW_BACSI_HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV, KETQUA) VALUES (" +
                           OracleSql.QLit(_txtSvcRecordId.Text) + ", " + OracleSql.QLit(_txtSvcType.Text) + ", " +
-                          "TO_DATE(" + OracleSql.QLit(_txtSvcDate.Text) + ", 'DD/MM/YYYY'), " + OracleSql.QLit(ktv) + ", NULL)";
+                          ngayDv + ", " + OracleSql.QLit(ktv) + ", NULL)";
                 }
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadServicesAsync();
@@ -439,12 +527,62 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var sql = "DELETE FROM CQ09.vw_bacsi_hsba_dv WHERE MAHSBA = " + OracleSql.QLit(_txtSvcRecordId.Text) +
+                var ngayDv = ToOracleDate(_txtSvcDate.Text, "Ngay DV");
+                if (ngayDv == null) return;
+
+                var sql = "DELETE FROM CQ09.VW_BACSI_HSBA_DV WHERE MAHSBA = " + OracleSql.QLit(_txtSvcRecordId.Text) +
                           " AND LOAIDV = " + OracleSql.QLit(_txtSvcType.Text) +
-                          " AND NGAYDV = TO_DATE(" + OracleSql.QLit(_txtSvcDate.Text) + ", 'DD/MM/YYYY')";
+                          " AND NGAYDV = " + ngayDv;
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadServicesAsync();
                 _lblStatus.Text = "Da xoa chi dinh dich vu.";
+            }
+            catch (Exception ex) { ShowError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task LoadProfileAsync()
+        {
+            _lblStatus.Text = "Dang tai ho so ca nhan...";
+            var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.VW_NHANVIEN_CANHAN";
+            var dt = await OracleSql.QueryAsync(_connectionString, sql);
+            if (dt.Rows.Count == 0)
+            {
+                _lblStatus.Text = "Khong tim thay ho so ca nhan cua bac si dang dang nhap.";
+                return;
+            }
+
+            var r = dt.Rows[0];
+            _txtEmpId.Text = r["MANV"]?.ToString() ?? "";
+            _txtEmpName.Text = r["HOTEN"]?.ToString() ?? "";
+            _txtEmpGender.Text = r["PHAI"]?.ToString() ?? "";
+            _txtEmpBirthDate.Text = r["NGAYSINH"]?.ToString() ?? "";
+            _txtEmpIdentity.Text = r["CMND"]?.ToString() ?? "";
+            _txtEmpRole.Text = r["VAITRO"]?.ToString() ?? "";
+            _txtEmpDept.Text = r["CHUYENKHOA"]?.ToString() ?? "";
+            _txtEmpHometown.Text = r["QUEQUAN"]?.ToString() ?? "";
+            _txtEmpPhone.Text = r["SODT"]?.ToString() ?? "";
+            _lblStatus.Text = "Da tai ho so ca nhan.";
+        }
+
+        private async Task SaveProfileAsync()
+        {
+            if (string.IsNullOrWhiteSpace(_doctorId))
+            {
+                MessageBox.Show(this, "Khong tim thay ma bac si dang dang nhap.", "Canh bao", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            SetBusy(true);
+            try
+            {
+                var sql = "UPDATE CQ09.VW_NHANVIEN_CANHAN SET " +
+                          "QUEQUAN = " + OracleSql.QLit(_txtEmpHometown.Text) + ", " +
+                          "SODT = " + OracleSql.QLit(_txtEmpPhone.Text) + " " +
+                          "WHERE MANV = " + OracleSql.QLit(_doctorId);
+                var rows = await OracleSql.ExecuteAsync(_connectionString, sql);
+                _lblStatus.Text = rows > 0 ? "Da cap nhat thong tin lien he." : "Khong co dong nao duoc cap nhat.";
+                await LoadProfileAsync();
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }
@@ -490,16 +628,40 @@ namespace WindowsFormsApp1
 
         private bool ValidatePrescription()
         {
-            if (!string.IsNullOrWhiteSpace(_txtRxRecordId.Text) && !string.IsNullOrWhiteSpace(_txtRxDate.Text) && !string.IsNullOrWhiteSpace(_txtMedicine.Text)) return true;
+            if (!string.IsNullOrWhiteSpace(_txtRxRecordId.Text) && !string.IsNullOrWhiteSpace(_txtRxDate.Text) && !string.IsNullOrWhiteSpace(_txtMedicine.Text))
+            {
+                return ToOracleDate(_txtRxDate.Text, "Ngay DT", false) != null;
+            }
             MessageBox.Show(this, "Vui long nhap Ma HSBA, Ngay DT (DD/MM/YYYY) va Ten thuoc.", "Canh bao", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
 
         private bool ValidateService()
         {
-            if (!string.IsNullOrWhiteSpace(_txtSvcRecordId.Text) && !string.IsNullOrWhiteSpace(_txtSvcType.Text) && !string.IsNullOrWhiteSpace(_txtSvcDate.Text) && _cboTechnician.SelectedValue != null) return true;
+            if (!string.IsNullOrWhiteSpace(_txtSvcRecordId.Text) && !string.IsNullOrWhiteSpace(_txtSvcType.Text) && !string.IsNullOrWhiteSpace(_txtSvcDate.Text) && _cboTechnician.SelectedValue != null)
+            {
+                return ToOracleDate(_txtSvcDate.Text, "Ngay DV", false) != null;
+            }
             MessageBox.Show(this, "Vui long nhap Ma HSBA, Loai DV, Ngay DV (DD/MM/YYYY) va KTV.", "Canh bao", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
+        }
+
+        private string ToOracleDate(string value, string fieldName, bool normalize = true)
+        {
+            if (!DateTime.TryParseExact(value?.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                MessageBox.Show(this, $"{fieldName} phai co dinh dang DD/MM/YYYY.", "Canh bao", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return null;
+            }
+
+            var normalized = date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            if (normalize)
+            {
+                if (fieldName == "Ngay DT") _txtRxDate.Text = normalized;
+                if (fieldName == "Ngay DV") _txtSvcDate.Text = normalized;
+            }
+
+            return "TO_DATE(" + OracleSql.QLit(normalized) + ", 'DD/MM/YYYY')";
         }
 
         private void SetBusy(bool busy)
