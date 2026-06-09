@@ -26,6 +26,27 @@ EXCEPTION
 END;
 /
 
+PROMPT ===== KIEM TRA USER DANG CHAY SCRIPT =====
+
+SELECT SYS_CONTEXT('USERENV', 'SESSION_USER') AS SESSION_USER,
+       SYS_CONTEXT('USERENV', 'CURRENT_SCHEMA') AS CURRENT_SCHEMA,
+       SYS_CONTEXT('USERENV', 'CON_NAME') AS CON_NAME
+FROM dual;
+
+DECLARE
+    v_user VARCHAR2(128);
+BEGIN
+    v_user := SYS_CONTEXT('USERENV', 'SESSION_USER');
+    IF v_user NOT IN ('SYS', 'SYSTEM', 'CQ09') THEN
+        RAISE_APPLICATION_ERROR(
+            -20001,
+            'Hay chay script nay bang SYS AS SYSDBA hoac CQ09. User hien tai la ' || v_user ||
+            ', khong co quyen doc log FGA va phuc hoi CQ09.DONTHUOC.'
+        );
+    END IF;
+END;
+/
+
 DECLARE
     v_ts VARCHAR2(19);
 BEGIN
