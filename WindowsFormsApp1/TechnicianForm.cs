@@ -104,6 +104,7 @@ namespace WindowsFormsApp1
             };
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(_lblKtvName);
+            pnlHeader.Controls.Add(SessionNavigation.CreateLogoutButton(this));
 
             // 2. Status Strip
             _statusStrip = new StatusStrip { BackColor = Color.FromArgb(230, 234, 240) };

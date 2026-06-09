@@ -37,7 +37,7 @@ namespace WindowsFormsApp1
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
             
             BuildUi();
-            LoadDataAsync();
+            Load += async (s, e) => await LoadDataAsync();
         }
 
         private void SetBusy(bool busy)
@@ -87,6 +87,7 @@ namespace WindowsFormsApp1
             };
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Controls.Add(_lblPatientName);
+            pnlHeader.Controls.Add(SessionNavigation.CreateLogoutButton(this));
 
             // 2. Status Strip
             _statusStrip = new StatusStrip { BackColor = Color.FromArgb(230, 234, 240) };

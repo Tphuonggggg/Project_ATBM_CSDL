@@ -100,6 +100,7 @@ namespace WindowsFormsApp1
                 Padding = new Padding(0, 0, 18, 0)
             };
             header.Controls.Add(_lblCoordinator);
+            header.Controls.Add(SessionNavigation.CreateLogoutButton(this));
 
             _statusStrip = new StatusStrip { BackColor = Color.FromArgb(230, 234, 240) };
             _lblStatus = new ToolStripStatusLabel("San sang.");

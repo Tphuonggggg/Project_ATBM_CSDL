@@ -106,7 +106,7 @@ namespace WindowsFormsApp1
 
         private void mnuLogout_Click(object sender, EventArgs e)
         {
-            Close();
+            SessionNavigation.Logout(this);
         }
 
         private async void mnuRefresh_Click(object sender, EventArgs e)
