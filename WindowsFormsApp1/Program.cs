@@ -16,35 +16,41 @@ namespace WindowsFormsApp1
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            using (var login = new LoginForm())
+
+            var showLoginAgain = true;
+            while (showLoginAgain)
             {
-                if (login.ShowDialog() != DialogResult.OK)
-                    return;
-
-                Form mainForm;
-                switch (login.UserRole)
+                showLoginAgain = false;
+                using (var login = new LoginForm())
                 {
-                    case "Bệnh nhân":
-                        mainForm = new PatientForm(login.ConnectionString);
-                        break;
-                    case "Kỹ thuật viên":
-                        mainForm = new TechnicianForm(login.ConnectionString);
-                        break;
-                    case "Bác sĩ/Y sĩ":
-                        mainForm = new DoctorForm(login.ConnectionString);
-                        break;
-                    case "Điều phối viên":
-                        mainForm = new CoordinatorForm(login.ConnectionString);
-                        break;
-                    case "OLS_DEMO":
-                        mainForm = new OlsDemoForm(login.ConnectionString, login.Username);
-                        break;
-                    default:
-                        mainForm = new MainForm(login.ConnectionString);
-                        break;
-                }
+                    if (login.ShowDialog() != DialogResult.OK)
+                        return;
 
-                Application.Run(mainForm);
+                    using (var mainForm = CreateMainForm(login))
+                    {
+                        Application.Run(mainForm);
+                        showLoginAgain = SessionNavigation.IsLogoutRequested(mainForm);
+                    }
+                }
+            }
+        }
+
+        private static Form CreateMainForm(LoginForm login)
+        {
+            switch (login.UserRole)
+            {
+                case "Bệnh nhân":
+                    return new PatientForm(login.ConnectionString);
+                case "Kỹ thuật viên":
+                    return new TechnicianForm(login.ConnectionString);
+                case "Bác sĩ/Y sĩ":
+                    return new DoctorForm(login.ConnectionString);
+                case "Điều phối viên":
+                    return new CoordinatorForm(login.ConnectionString);
+                case "OLS_DEMO":
+                    return new OlsDemoForm(login.ConnectionString, login.Username);
+                default:
+                    return new MainForm(login.ConnectionString);
             }
         }
     }

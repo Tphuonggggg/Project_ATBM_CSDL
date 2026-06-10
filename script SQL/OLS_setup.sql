@@ -1,300 +1,375 @@
 -- =============================================================
 -- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
 -- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE: OLS_setup.sql 
--- THIẾT LẬP CƠ CHẾ PHÁT TÁN THÔNG BÁO KHẨN DÙNG OLS (YÊU CẦU 2)
+-- FILE: OLS_setup.sql
+-- YEU CAU 2: PHAT TAN THONG BAO DUNG ORACLE LABEL SECURITY
 -- =============================================================
-
--- =============================================================
--- HƯỚNG DẪN CHẠY:
---   1. Đăng nhập bằng tài khoản SYS AS SYSDBA trỏ vào PDB XEPDB1.
---   2. Thực thi file này để cấu hình OLS cho bảng CQ09.THONGBAO.
---   3. Lệnh chạy: @d:\CODE\Project_ATBM\Project_ATBM_CSDL\WindowsFormsApp1\OLS_setup.sql
+--
+-- Mo hinh nhan:
+--   LEVEL : COMPARTMENT : GROUP
+--
+-- LEVEL:
+--   GD   = Ban Giam doc
+--   LDK  = Lanh dao khoa
+--   NV   = Nhan vien
+--
+-- COMPARTMENT:
+--   TH = Khoa Tieu hoa
+--   TK = Khoa Than kinh
+--   TM = Khoa Tim mach
+--
+-- GROUP:
+--   HCM = Co so Ho Chi Minh
+--   HN  = Co so Ha Noi
+--   HP  = Co so Hai Phong
+--
+-- Luu y thiet ke:
+--   Cac thong bao gui TOAN VIEN / TOAN BO CAP BAC duoc gan nhan
+--   khong kem compartment/group, vi neu gan tat ca khoa/co so len
+--   mot dong thi user chi thuoc mot khoa/co so co the khong doc duoc.
 -- =============================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
 
-PROMPT ===== CẤP QUYỀN THỪA KẾ PRIVILEGES CHO LBACSYS =====
+PROMPT ===== 0. CHON PDB XEPDB1 VA BAT OLS NEU CAN =====
+
 BEGIN
-    EXECUTE IMMEDIATE 'GRANT INHERIT PRIVILEGES ON USER SYS TO LBACSYS';
-    DBMS_OUTPUT.PUT_LINE('Granted INHERIT PRIVILEGES on SYS to LBACSYS successfully.');
+    EXECUTE IMMEDIATE 'ALTER SESSION SET CONTAINER = XEPDB1';
+    DBMS_OUTPUT.PUT_LINE('Current container switched to XEPDB1.');
 EXCEPTION
     WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('INHERIT PRIVILEGES grant already exists or skipped.');
+        DBMS_OUTPUT.PUT_LINE('Skip ALTER SESSION SET CONTAINER: ' || SQLERRM);
 END;
 /
 
-PROMPT ===== TẠO CHÍNH SÁCH BẢO MẬT OLS (OLS POLICY) =====
-DECLARE
-    v_count INT;
 BEGIN
-    SELECT COUNT(*) INTO v_count FROM DBA_SA_POLICIES WHERE POLICY_NAME = 'OLS_THONGBAO_POLICY';
-    IF v_count = 0 THEN
-        LBACSYS.SA_SYSDBA.CREATE_POLICY (
-            policy_name     => 'OLS_THONGBAO_POLICY',
-            column_name     => 'ROW_LABEL',
-            default_options => 'READ_CONTROL, WRITE_CONTROL, CHECK_CONTROL'
+    LBACSYS.CONFIGURE_OLS;
+    DBMS_OUTPUT.PUT_LINE('CONFIGURE_OLS executed.');
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('CONFIGURE_OLS skipped/already configured: ' || SQLERRM);
+END;
+/
+
+BEGIN
+    LBACSYS.OLS_ENFORCEMENT.ENABLE_OLS;
+    DBMS_OUTPUT.PUT_LINE('OLS enforcement enabled.');
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('ENABLE_OLS skipped/already enabled: ' || SQLERRM);
+END;
+/
+
+PROMPT ===== 1. CAP QUYEN HE THONG CAN THIET =====
+
+BEGIN
+    EXECUTE IMMEDIATE 'GRANT INHERIT PRIVILEGES ON USER SYS TO LBACSYS';
+    DBMS_OUTPUT.PUT_LINE('Granted INHERIT PRIVILEGES on SYS to LBACSYS.');
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('INHERIT PRIVILEGES grant skipped: ' || SQLERRM);
+END;
+/
+
+BEGIN
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON LBACSYS.LBAC_POLICY_ADMIN TO CQ09';
+    EXECUTE IMMEDIATE 'GRANT EXECUTE ON LBACSYS.SA_SESSION TO CQ09';
+    DBMS_OUTPUT.PUT_LINE('Granted OLS helper execute privileges to CQ09.');
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('OLS helper grants skipped: ' || SQLERRM);
+END;
+/
+
+PROMPT ===== 2. DON POLICY CU NEU DA CHAY TRUOC DO =====
+
+BEGIN
+    BEGIN
+        LBACSYS.LBAC_POLICY_ADMIN.DISABLE_TABLE_POLICY(
+            policy_name => 'OLS_THONGBAO_POLICY',
+            schema_name => 'CQ09',
+            table_name  => 'THONGBAO'
         );
-        DBMS_OUTPUT.PUT_LINE('Created OLS Policy: OLS_THONGBAO_POLICY');
-    ELSE
-        DBMS_OUTPUT.PUT_LINE('OLS Policy already exists.');
-    END IF;
-END;
-/
-
-
-PROMPT ===== TẠO CÁC THÀNH PHẦN NHÃN (LEVELS, COMPARTMENTS, GROUPS) =====
-BEGIN
-    -- Thiết lập Cấp độ (LEVELS)
-    BEGIN
-        LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 30, 'GD', 'Ban Giam Doc');
-        LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 20, 'LD', 'Lanh Dao Khoa');
-        LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 10, 'NV', 'Nhan Vien');
-        DBMS_OUTPUT.PUT_LINE('Created Levels: GD (30), LD (20), NV (10)');
+        DBMS_OUTPUT.PUT_LINE('Disabled old OLS table policy.');
     EXCEPTION
         WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('OLS Levels already exist or unique constraint violated. Skipping.');
+            DBMS_OUTPUT.PUT_LINE('No enabled old table policy or disable skipped: ' || SQLERRM);
     END;
 
-    -- Thiết lập Bộ phận/Khoa (COMPARTMENTS)
     BEGIN
-        LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 100, 'TH', 'Khoa Tieu Hoa');
-        LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 200, 'TK', 'Khoa Than Kinh');
-        LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 300, 'TM', 'Khoa Tim Mach');
-        DBMS_OUTPUT.PUT_LINE('Created Compartments: TH (Tieu Hoa), TK (Than Kinh), TM (Tim Mach)');
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('OLS Compartments already exist. Skipping.');
-    END;
-
-    -- Thiết lập Địa lý/Cơ sở (GROUPS)
-    BEGIN
-        LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 1000, 'HCM', 'Co so Ho Chi Minh');
-        LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 2000, 'HP', 'Co so Hai Phong');
-        LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 3000, 'HN', 'Co so Ha Noi');
-        DBMS_OUTPUT.PUT_LINE('Created Groups: HCM, HP, HN');
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('OLS Groups already exist. Skipping.');
-    END;
-END;
-/
-
-
-PROMPT ===== ĐỊNH NGHĨA DANH SÁCH NHÃN HỢP LỆ (DATA LABELS) =====
-BEGIN
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 100, 'NV');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 110, 'GD');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 120, 'LD');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 130, 'LD:TH');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 140, 'NV:TH:HCM');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 150, 'NV:TH:HN');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-
-    BEGIN
-        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', 160, 'LD:TH,TK:HP');
-    EXCEPTION WHEN OTHERS THEN NULL; END;
-    
-    DBMS_OUTPUT.PUT_LINE('OLS Data Labels checked/created.');
-END;
-/
-
-
-PROMPT ===== ÁP DỤNG CHÍNH SÁCH OLS LÊN BẢNG CQ09.THONGBAO =====
-DECLARE
-    v_applied INT;
-BEGIN
-    SELECT COUNT(*) INTO v_applied FROM DBA_SA_TABLE_POLICIES 
-    WHERE POLICY_NAME = 'OLS_THONGBAO_POLICY' AND SCHEMA_NAME = 'CQ09' AND TABLE_NAME = 'THONGBAO';
-    
-    IF v_applied = 0 THEN
-        LBACSYS.LBAC_POLICY_ADMIN.APPLY_TABLE_POLICY (
-            policy_name     => 'OLS_THONGBAO_POLICY',
-            schema_name     => 'CQ09', 
-            table_name      => 'THONGBAO',
-            table_options   => 'READ_CONTROL, WRITE_CONTROL, CHECK_CONTROL'
+        LBACSYS.LBAC_POLICY_ADMIN.REMOVE_TABLE_POLICY(
+            policy_name => 'OLS_THONGBAO_POLICY',
+            schema_name => 'CQ09',
+            table_name  => 'THONGBAO'
         );
-        EXECUTE IMMEDIATE 'GRANT SELECT ON CQ09.THONGBAO TO public';
-        DBMS_OUTPUT.PUT_LINE('Applied OLS Policy to table CQ09.THONGBAO and granted SELECT to public.');
-    ELSE
-        EXECUTE IMMEDIATE 'GRANT SELECT ON CQ09.THONGBAO TO public';
-        DBMS_OUTPUT.PUT_LINE('OLS Policy is already applied. Ensured SELECT grant to public.');
-    END IF;
+        DBMS_OUTPUT.PUT_LINE('Removed old OLS table policy.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('No old table policy or remove skipped: ' || SQLERRM);
+    END;
+
+    BEGIN
+        LBACSYS.SA_SYSDBA.DROP_POLICY('OLS_THONGBAO_POLICY', TRUE);
+        DBMS_OUTPUT.PUT_LINE('Dropped old OLS policy and old label column.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('No old OLS policy or drop skipped: ' || SQLERRM);
+    END;
 END;
 /
 
-
-PROMPT ===== TẠO CÁC USER NGHIỆP VỤ ĐỂ DEMO OLS (u1 -> u8) =====
 DECLARE
-    PROCEDURE create_demo_user(p_user VARCHAR2) IS
-        v_user_count INT;
+    PROCEDURE drop_column_if_exists(p_column VARCHAR2) IS
+        v_count NUMBER;
     BEGIN
-        SELECT COUNT(*) INTO v_user_count FROM DBA_USERS WHERE USERNAME = UPPER(p_user);
-        IF v_user_count = 0 THEN
+        SELECT COUNT(*) INTO v_count
+        FROM ALL_TAB_COLUMNS
+        WHERE OWNER = 'CQ09'
+          AND TABLE_NAME = 'THONGBAO'
+          AND COLUMN_NAME = UPPER(p_column);
+
+        IF v_count > 0 THEN
+            EXECUTE IMMEDIATE 'ALTER TABLE CQ09.THONGBAO DROP COLUMN ' || p_column;
+            DBMS_OUTPUT.PUT_LINE('Dropped old OLS label column: ' || p_column);
+        END IF;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Drop column skipped for ' || p_column || ': ' || SQLERRM);
+    END;
+BEGIN
+    drop_column_if_exists('ROW_LABEL');
+    drop_column_if_exists('LABEL_TAG');
+END;
+/
+
+PROMPT ===== 3. TAO POLICY OLS CHO BANG CQ09.THONGBAO =====
+
+BEGIN
+    LBACSYS.SA_SYSDBA.CREATE_POLICY(
+        policy_name     => 'OLS_THONGBAO_POLICY',
+        column_name     => 'LABEL_TAG',
+        default_options => 'READ_CONTROL, WRITE_CONTROL, CHECK_CONTROL'
+    );
+    DBMS_OUTPUT.PUT_LINE('Created OLS_THONGBAO_POLICY with label column LABEL_TAG.');
+END;
+/
+
+PROMPT ===== 4. TAO LEVEL, COMPARTMENT, GROUP =====
+
+BEGIN
+    LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 30, 'GD',  'Ban Giam doc');
+    LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 20, 'LDK', 'Lanh dao khoa');
+    LBACSYS.SA_COMPONENTS.CREATE_LEVEL('OLS_THONGBAO_POLICY', 10, 'NV',  'Nhan vien');
+
+    LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 100, 'TH', 'Khoa Tieu hoa');
+    LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 200, 'TK', 'Khoa Than kinh');
+    LBACSYS.SA_COMPONENTS.CREATE_COMPARTMENT('OLS_THONGBAO_POLICY', 300, 'TM', 'Khoa Tim mach');
+
+    LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 1000, 'HCM', 'Co so Ho Chi Minh');
+    LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 2000, 'HN',  'Co so Ha Noi');
+    LBACSYS.SA_COMPONENTS.CREATE_GROUP('OLS_THONGBAO_POLICY', 3000, 'HP',  'Co so Hai Phong');
+
+    DBMS_OUTPUT.PUT_LINE('Created OLS components: levels, compartments, groups.');
+END;
+/
+
+PROMPT ===== 5. TAO CAC NHAN DU LIEU VA NHAN USER CAN DUNG =====
+
+DECLARE
+    PROCEDURE create_label_if_needed(p_tag NUMBER, p_label VARCHAR2) IS
+    BEGIN
+        LBACSYS.SA_LABEL_ADMIN.CREATE_LABEL('OLS_THONGBAO_POLICY', p_tag, p_label);
+        DBMS_OUTPUT.PUT_LINE('Created label ' || p_tag || ': ' || p_label);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Label skipped ' || p_tag || ' (' || p_label || '): ' || SQLERRM);
+    END;
+BEGIN
+    -- Data labels t1 -> t7.
+    create_label_if_needed(100, 'NV');
+    create_label_if_needed(110, 'GD');
+    create_label_if_needed(120, 'LDK');
+    create_label_if_needed(130, 'LDK:TH');
+    create_label_if_needed(140, 'NV:TH:HCM');
+    create_label_if_needed(150, 'NV:TH:HN');
+    create_label_if_needed(160, 'LDK:TH,TK:HP');
+
+    -- User labels u1 -> u8.
+    create_label_if_needed(201, 'GD:TH,TK,TM:HCM,HN,HP');
+    create_label_if_needed(202, 'LDK:TM:HCM');
+    create_label_if_needed(203, 'LDK:TK:HN');
+    create_label_if_needed(204, 'NV:TK:HCM');
+    create_label_if_needed(205, 'NV:TM:HCM');
+    create_label_if_needed(206, 'LDK:TH,TK,TM:HCM,HN,HP');
+    create_label_if_needed(207, 'NV:TH:HN');
+END;
+/
+
+PROMPT ===== 6. AP POLICY LEN BANG CQ09.THONGBAO =====
+
+BEGIN
+    LBACSYS.LBAC_POLICY_ADMIN.APPLY_TABLE_POLICY(
+        policy_name   => 'OLS_THONGBAO_POLICY',
+        schema_name   => 'CQ09',
+        table_name    => 'THONGBAO',
+        table_options => 'READ_CONTROL, WRITE_CONTROL, CHECK_CONTROL'
+    );
+    DBMS_OUTPUT.PUT_LINE('Applied OLS policy to CQ09.THONGBAO.');
+END;
+/
+
+PROMPT ===== 7. TAO USER DEMO OLS U1 -> U8 VA CAP QUYEN DOC BANG =====
+
+DECLARE
+    PROCEDURE create_or_reset_user(p_user VARCHAR2) IS
+        v_count NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO v_count
+        FROM DBA_USERS
+        WHERE USERNAME = UPPER(p_user);
+
+        IF v_count = 0 THEN
             EXECUTE IMMEDIATE 'CREATE USER ' || p_user || ' IDENTIFIED BY "ATBM123" ACCOUNT UNLOCK';
-            EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO ' || p_user;
             DBMS_OUTPUT.PUT_LINE('Created demo user: ' || p_user);
         ELSE
-            DBMS_OUTPUT.PUT_LINE('Demo user ' || p_user || ' already exists.');
+            EXECUTE IMMEDIATE 'ALTER USER ' || p_user || ' IDENTIFIED BY "ATBM123" ACCOUNT UNLOCK';
+            DBMS_OUTPUT.PUT_LINE('Reset/unlocked demo user: ' || p_user);
         END IF;
+
+        EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO ' || p_user;
+        EXECUTE IMMEDIATE 'GRANT SELECT ON CQ09.THONGBAO TO ' || p_user;
     END;
 BEGIN
-    create_demo_user('u1');
-    create_demo_user('u2');
-    create_demo_user('u3');
-    create_demo_user('u4');
-    create_demo_user('u5');
-    create_demo_user('u6');
-    create_demo_user('u7');
-    create_demo_user('u8');
+    create_or_reset_user('u1');
+    create_or_reset_user('u2');
+    create_or_reset_user('u3');
+    create_or_reset_user('u4');
+    create_or_reset_user('u5');
+    create_or_reset_user('u6');
+    create_or_reset_user('u7');
+    create_or_reset_user('u8');
 END;
 /
 
+PROMPT ===== 8. GAN NHAN DOC CHO USER U1 -> U8 =====
 
-PROMPT ===== GÁN NHÃN VÀ ĐẶC QUYỀN CHO NGƯỜI DÙNG (USER LABELS & PRIVILEGES) =====
-DECLARE
-    v_con_name VARCHAR2(100);
 BEGIN
-    SELECT sys_context('USERENV', 'CON_NAME') INTO v_con_name FROM dual;
-    DBMS_OUTPUT.PUT_LINE('Current DB Container context: ' || v_con_name);
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u1', 'GD:TH,TK,TM:HCM,HN,HP');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u2', 'LDK:TM:HCM');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u3', 'LDK:TK:HN');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u4', 'NV:TK:HCM');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u5', 'NV:TM:HCM');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u6', 'LDK:TM:HCM');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u7', 'LDK:TH,TK,TM:HCM,HN,HP');
+    LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u8', 'NV:TH:HN');
 
-    -- Gán nhãn đọc ghi OLS cho các user từ u1 -> u8
-    BEGIN
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u1', 'GD:TH,TK,TM:HCM,HP,HN');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u2', 'LD:TM:HCM');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u3', 'LD:TK:HN');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u4', 'NV:TK:HCM');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u5', 'NV:TM:HCM');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u6', 'LD:TM:HCM');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u7', 'LD:TH,TK,TM:HCM,HP,HN');
-        LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u8', 'NV:TH:HN');
-        DBMS_OUTPUT.PUT_LINE('Assigned OLS labels to users u1 -> u8 successfully.');
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Warning: Could not set OLS labels for users: ' || SQLERRM);
-    END;
-    
-    -- Cấp đặc quyền 'FULL' OLS cho CQ09
-    BEGIN
-        LBACSYS.SA_USER_ADMIN.SET_USER_PRIVS('OLS_THONGBAO_POLICY', 'CQ09', 'FULL');
-        DBMS_OUTPUT.PUT_LINE('Granted OLS FULL privilege to CQ09 successfully.');
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Warning: Could not set OLS FULL privilege for CQ09: ' || SQLERRM);
-    END;
-    
-    -- Cấp trực tiếp các quyền hệ thống cho CQ09 để thực hiện Phân hệ 1 (Tránh lỗi ORA-01031 trong PL/SQL DDL)
-    BEGIN
-        EXECUTE IMMEDIATE 'GRANT CREATE USER, ALTER USER, DROP USER TO CQ09 WITH ADMIN OPTION';
-        EXECUTE IMMEDIATE 'GRANT CREATE ROLE, DROP ANY ROLE TO CQ09 WITH ADMIN OPTION';
-        EXECUTE IMMEDIATE 'GRANT GRANT ANY PRIVILEGE, GRANT ANY ROLE TO CQ09 WITH ADMIN OPTION';
-        EXECUTE IMMEDIATE 'GRANT SELECT ANY DICTIONARY TO CQ09';
-        DBMS_OUTPUT.PUT_LINE('Granted direct system privileges to CQ09 successfully.');
-    EXCEPTION
-        WHEN OTHERS THEN
-            DBMS_OUTPUT.PUT_LINE('Warning: Could not grant direct system privileges to CQ09: ' || SQLERRM);
-    END;
+    -- CQ09 la schema owner dung de nap/xem toan bo du lieu khi demo quan tri.
+    LBACSYS.SA_USER_ADMIN.SET_USER_PRIVS('OLS_THONGBAO_POLICY', 'CQ09', 'FULL');
+    DBMS_OUTPUT.PUT_LINE('Assigned OLS labels to u1 -> u8 and FULL privilege to CQ09.');
 END;
 /
 
+PROMPT ===== 9. NAP DU LIEU THONG BAO T1 -> T7 =====
 
-PROMPT ===== NẠP DỮ LIỆU THÔNG BÁO VỚI NHÃN BẢO MẬT (t1 -> t7) =====
-
--- Tạm thời tắt chính sách bảo mật OLS trên bảng CQ09.THONGBAO để nạp dữ liệu mẫu
 BEGIN
-    LBACSYS.LBAC_POLICY_ADMIN.DISABLE_TABLE_POLICY('OLS_THONGBAO_POLICY', 'CQ09', 'THONGBAO');
+    LBACSYS.LBAC_POLICY_ADMIN.DISABLE_TABLE_POLICY(
+        policy_name => 'OLS_THONGBAO_POLICY',
+        schema_name => 'CQ09',
+        table_name  => 'THONGBAO'
+    );
 END;
 /
 
--- Trước khi nạp, xóa thông báo cũ trong schema CQ09
 DELETE FROM CQ09.THONGBAO;
 
--- Thực hiện insert dữ liệu đi kèm chỉ định nhãn OLS tương ứng cho từng dòng
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't1', 
-    N'Thông báo toàn viện: Họp định kỳ tháng về phòng chống cháy nổ', 
-    TIMESTAMP '2026-07-07 08:00:00', 
-    N'Hội trường lớn của toàn bộ các Cơ sở', 
+    't1',
+    N'Thông báo toàn viện: Họp định kỳ tháng về quy trình an toàn bệnh viện',
+    TIMESTAMP '2026-07-07 08:00:00',
+    N'Hội trường lớn tại toàn bộ cơ sở',
     CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'NV')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't2', 
-    N'Thông báo Ban Giám Đốc: Thảo luận chiến lược mở rộng bệnh viện 2027', 
-    TIMESTAMP '2026-07-11 14:00:00', 
-    N'Phòng họp Vip lầu 10 - CS HCM', 
+    't2',
+    N'Thông báo Ban Giám đốc: Họp chiến lược mở rộng bệnh viện năm 2027',
+    TIMESTAMP '2026-07-11 14:00:00',
+    N'Phòng họp Ban Giám đốc - cơ sở Hồ Chí Minh',
     CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'GD')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't3', 
-    N'Thông báo Lãnh đạo Khoa: Đánh giá chất lượng chuyên môn Quý 2', 
-    TIMESTAMP '2026-07-05 09:30:00', 
-    N'Phòng họp liên cơ sở trực tuyến', 
-    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LD')
+    't3',
+    N'Thông báo lãnh đạo khoa: Đánh giá chất lượng chuyên môn quý 2',
+    TIMESTAMP '2026-07-05 09:30:00',
+    N'Phòng họp trực tuyến liên cơ sở',
+    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LDK')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't4', 
-    N'Thông báo Khoa Tiêu Hóa: Cập nhật phác đồ điều trị nội soi dạ dày mới', 
-    TIMESTAMP '2026-07-01 15:00:00', 
-    N'Phòng hội thảo chuyên đề khoa Tiêu Hóa', 
-    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LD:TH')
+    't4',
+    N'Thông báo lãnh đạo Khoa Tiêu hóa: Cập nhật phác đồ điều trị nội soi mới',
+    TIMESTAMP '2026-07-01 15:00:00',
+    N'Phòng hội thảo chuyên đề Khoa Tiêu hóa',
+    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LDK:TH')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't5', 
-    N'Thông báo Khoa Tiêu Hóa tại HCM: Đào tạo nội bộ KTV Xét nghiệm Tiêu hóa', 
-    TIMESTAMP '2026-07-02 08:30:00', 
-    N'Phòng LAB vi sinh lầu 2 - CS HCM', 
+    't5',
+    N'Thông báo nhân viên Khoa Tiêu hóa tại HCM: Đào tạo nội bộ kỹ thuật xét nghiệm',
+    TIMESTAMP '2026-07-02 08:30:00',
+    N'Phòng LAB vi sinh - cơ sở Hồ Chí Minh',
     CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'NV:TH:HCM')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't6', 
-    N'Thông báo Khoa Tiêu Hóa tại HN: Tập huấn quy trình chẩn đoán khuẩn HP mới', 
-    TIMESTAMP '2026-07-10 10:00:00', 
-    N'Hội trường giảng dạy - CS Hà Nội', 
+    't6',
+    N'Thông báo nhân viên Khoa Tiêu hóa tại Hà Nội: Tập huấn quy trình chẩn đoán HP',
+    TIMESTAMP '2026-07-10 10:00:00',
+    N'Hội trường giảng dạy - cơ sở Hà Nội',
     CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'NV:TH:HN')
 );
 
-INSERT INTO CQ09.THONGBAO (MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, ROW_LABEL) 
+INSERT INTO CQ09.THONGBAO(MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM, LABEL_TAG)
 VALUES (
-    't7', 
-    N'Thông báo khẩn liên khoa Hải Phòng: Xử lý sự cố nhiễm khuẩn khoa Tiêu Hóa & Thần Kinh', 
-    TIMESTAMP '2026-07-08 16:30:00', 
-    N'Phòng họp chỉ huy khẩn cấp - CS Hải Phòng', 
-    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LD:TH,TK:HP')
+    't7',
+    N'Thông báo lãnh đạo Khoa Tiêu hóa và Thần kinh tại Hải Phòng: Xử lý sự cố nhiễm khuẩn',
+    TIMESTAMP '2026-07-08 16:30:00',
+    N'Phòng họp chỉ huy khẩn cấp - cơ sở Hải Phòng',
+    CHAR_TO_LABEL('OLS_THONGBAO_POLICY', 'LDK:TH,TK:HP')
 );
 
--- Kích hoạt lại chính sách bảo mật OLS sau khi nạp xong dữ liệu
 BEGIN
-    LBACSYS.LBAC_POLICY_ADMIN.ENABLE_TABLE_POLICY('OLS_THONGBAO_POLICY', 'CQ09', 'THONGBAO');
+    LBACSYS.LBAC_POLICY_ADMIN.ENABLE_TABLE_POLICY(
+        policy_name => 'OLS_THONGBAO_POLICY',
+        schema_name => 'CQ09',
+        table_name  => 'THONGBAO'
+    );
 END;
 /
 
 COMMIT;
-PROMPT ===== HOÀN THÀNH SETUP CHÍNH SÁCH OLS =====
+
+PROMPT ===== 10. KIEM TRA NHAN VA DU LIEU MAU =====
+
+SELECT
+    MATHONGBAO,
+    LABEL_TO_CHAR(LABEL_TAG) AS NHAN_OLS,
+    DIADIEM
+FROM CQ09.THONGBAO
+ORDER BY MATHONGBAO;
+
+PROMPT ===== TEST NHANH SAU KHI CHAY SCRIPT =====
+PROMPT CONNECT u1/ATBM123@XEPDB1
+PROMPT SELECT MATHONGBAO, NOIDUNG FROM CQ09.THONGBAO ORDER BY MATHONGBAO;
+PROMPT CONNECT u4/ATBM123@XEPDB1
+PROMPT SELECT MATHONGBAO, NOIDUNG FROM CQ09.THONGBAO ORDER BY MATHONGBAO;
+
+PROMPT ===== HOAN THANH OLS SETUP CHO YEU CAU 2 =====

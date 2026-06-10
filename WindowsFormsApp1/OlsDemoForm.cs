@@ -22,6 +22,7 @@ namespace WindowsFormsApp1
         private DataGridView _gridNotifications;
         private Button _btnRefresh;
         private Button _btnExit;
+        private Label _lblResultCount;
 
         public OlsDemoForm(string connectionString, string username)
         {
@@ -36,7 +37,7 @@ namespace WindowsFormsApp1
             Font = new Font("Segoe UI", 9.5f, FontStyle.Regular);
 
             BuildUi();
-            LoadDataAsync();
+            Load += async (s, e) => await LoadDataAsync();
         }
 
         private void BuildUi()
@@ -95,11 +96,21 @@ namespace WindowsFormsApp1
             // 3. Grid for Notifications
             var lblGridHeader = new Label
             {
-                Text = "Dữ liệu truy vấn được từ bảng CQ09.THONGBAO (Đã áp dụng OLS):",
+                Text = "Dữ liệu đọc được từ CQ09.THONGBAO sau khi Oracle Label Security tự lọc:",
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(41, 56, 78),
                 Location = new Point(15, 195),
                 AutoSize = true
+            };
+
+            _lblResultCount = new Label
+            {
+                Text = "Đang tải dữ liệu...",
+                Font = new Font("Segoe UI", 9f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(90, 98, 112),
+                Location = new Point(15, 448),
+                Size = new Size(440, 32),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
             };
 
             _gridNotifications = new DataGridView
@@ -134,7 +145,7 @@ namespace WindowsFormsApp1
 
             _btnExit = new Button
             {
-                Text = "Đăng xuất (Exit)",
+                Text = "Đăng xuất",
                 Location = new Point(630, 460),
                 Size = new Size(140, 32),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
@@ -144,13 +155,14 @@ namespace WindowsFormsApp1
                 Cursor = Cursors.Hand
             };
             _btnExit.FlatAppearance.BorderSize = 0;
-            _btnExit.Click += (s, e) => Close();
+            _btnExit.Click += (s, e) => SessionNavigation.Logout(this);
 
             // Thêm các control vào Form
             Controls.Add(_headerPanel);
             Controls.Add(_grpExplanation);
             Controls.Add(lblGridHeader);
             Controls.Add(_gridNotifications);
+            Controls.Add(_lblResultCount);
             Controls.Add(_btnRefresh);
             Controls.Add(_btnExit);
         }
@@ -162,10 +174,9 @@ namespace WindowsFormsApp1
 
             try
             {
-                // Truy vấn bảng thông báo của CQ09
-                var sql = "SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM FROM CQ09.THONGBAO ORDER BY MATHONGBAO";
-                var dt = await OracleHelper.QueryAsync(_connectionString, sql);
+                var dt = await QueryNotificationsAsync();
                 _gridNotifications.DataSource = dt;
+                _lblResultCount.Text = $"Tài khoản {_username.ToUpper()} đọc được {dt.Rows.Count} thông báo.";
 
                 // Format Grid
                 if (_gridNotifications.Columns.Count > 0)
@@ -178,6 +189,11 @@ namespace WindowsFormsApp1
                     _gridNotifications.Columns["NGAYGIO"].FillWeight = 90;
                     _gridNotifications.Columns["DIADIEM"].HeaderText = "Địa điểm áp dụng";
                     _gridNotifications.Columns["DIADIEM"].FillWeight = 120;
+                    if (_gridNotifications.Columns.Contains("NHAN_OLS"))
+                    {
+                        _gridNotifications.Columns["NHAN_OLS"].HeaderText = "Nhãn OLS";
+                        _gridNotifications.Columns["NHAN_OLS"].FillWeight = 85;
+                    }
                 }
             }
             catch (Exception ex)
@@ -191,6 +207,12 @@ namespace WindowsFormsApp1
             }
         }
 
+        private async Task<DataTable> QueryNotificationsAsync()
+        {
+            var sqlBasic = "SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM FROM CQ09.THONGBAO ORDER BY MATHONGBAO";
+            return await OracleHelper.QueryAsync(_connectionString, sqlBasic);
+        }
+
         private string GetOlsExplanation(string username)
         {
             switch (username.ToLower())
@@ -198,17 +220,17 @@ namespace WindowsFormsApp1
                 case "u1": 
                     return "• Nhãn OLS: GD:TH,TK,TM:HCM,HP,HN\n• Vai trò: Ban Giám Đốc toàn viện (Cấp độ GD, đầy đủ khoa, đầy đủ cơ sở).\n• Kết quả kỳ vọng: Xem được TOÀN BỘ 7 thông báo (t1 đến t7) trong hệ thống.";
                 case "u2": 
-                    return "• Nhãn OLS: LD:TM:HCM\n• Vai trò: Lãnh đạo khoa Tim mạch tại TP.HCM (Cấp độ LD, khoa TM, cơ sở HCM).\n• Kết quả kỳ vọng: Xem được 2 thông báo: t1 (Thông báo chung cấp NV) và t3 (Thông báo chung cấp LD).";
+                    return "• Nhãn OLS: LDK:TM:HCM\n• Vai trò: Lãnh đạo khoa Tim mạch tại TP.HCM.\n• Kết quả kỳ vọng: Xem được t1 và t3.";
                 case "u3": 
-                    return "• Nhãn OLS: LD:TK:HN\n• Vai trò: Lãnh đạo khoa Thần kinh tại Hà Nội (Cấp độ LD, khoa TK, cơ sở HN).\n• Kết quả kỳ vọng: Xem được 2 thông báo: t1 (Thông báo chung cấp NV) và t3 (Thông báo chung cấp LD).";
+                    return "• Nhãn OLS: LDK:TK:HN\n• Vai trò: Lãnh đạo khoa Thần kinh tại Hà Nội.\n• Kết quả kỳ vọng: Xem được t1 và t3.";
                 case "u4": 
                     return "• Nhãn OLS: NV:TK:HCM\n• Vai trò: Nhân viên khoa Thần kinh tại TP.HCM (Cấp độ NV, khoa TK, cơ sở HCM).\n• Kết quả kỳ vọng: Chỉ xem được đúng 1 thông báo: t1 (Thông báo chung cấp NV toàn viện).";
                 case "u5": 
                     return "• Nhãn OLS: NV:TM:HCM\n• Vai trò: Nhân viên khoa Tim mạch tại TP.HCM (Cấp độ NV, khoa TM, cơ sở HCM).\n• Kết quả kỳ vọng: Chỉ xem được đúng 1 thông báo: t1 (Thông báo chung cấp NV toàn viện).";
                 case "u6": 
-                    return "• Nhãn OLS: LD:TM:HCM\n• Vai trò: Lãnh đạo khoa Tim mạch tại TP.HCM (Cấp độ LD, khoa TM, cơ sở HCM).\n• Kết quả kỳ vọng: Xem được 2 thông báo: t1 (Thông báo chung cấp NV) và t3 (Thông báo chung cấp LD).";
+                    return "• Nhãn OLS: LDK:TM:HCM\n• Vai trò: Lãnh đạo phòng/khoa Tim mạch tại TP.HCM.\n• Kết quả kỳ vọng: Xem được t1 và t3.";
                 case "u7": 
-                    return "• Nhãn OLS: LD:TH,TK,TM:HCM,HP,HN\n• Vai trò: Lãnh đạo liên khoa toàn cơ sở (Cấp độ LD, đầy đủ khoa và cơ sở).\n• Kết quả kỳ vọng: Xem được 3 thông báo: t1 (Chung NV), t3 (Chung LD) và t7 (Lãnh đạo liên khoa Hải Phòng).";
+                    return "• Nhãn OLS: LDK:TH,TK,TM:HCM,HP,HN\n• Vai trò: Lãnh đạo toàn khoa/toàn cơ sở ở cấp LDK.\n• Kết quả kỳ vọng: Xem được mọi thông báo mức LDK/NV phù hợp, trừ thông báo cấp GD.";
                 case "u8": 
                     return "• Nhãn OLS: NV:TH:HN\n• Vai trò: Nhân viên khoa Tiêu hóa tại Hà Nội (Cấp độ NV, khoa TH, cơ sở HN).\n• Kết quả kỳ vọng: Xem được 2 thông báo: t1 (Thông báo chung NV) và t6 (Thông báo riêng khoa Tiêu hóa tại HN).";
                 default: 

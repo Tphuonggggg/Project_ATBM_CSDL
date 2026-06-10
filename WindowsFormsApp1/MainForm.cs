@@ -134,6 +134,7 @@ namespace WindowsFormsApp1
                 Padding = new Padding(16, 0, 0, 0)
             };
             header.Controls.Add(lblTitle);
+            header.Controls.Add(SessionNavigation.CreateLogoutButton(this));
 
             // Thanh trạng thái phía dưới
             _status = new StatusStrip { BackColor = Color.FromArgb(230, 234, 240) };
