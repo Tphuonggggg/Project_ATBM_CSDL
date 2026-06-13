@@ -629,9 +629,9 @@ namespace WindowsFormsApp1
                 }
                 else
                 {
-                    sql = "INSERT INTO CQ09.VW_BACSI_HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV, KETQUA) VALUES (" +
+                    sql = "INSERT INTO CQ09.VW_BACSI_HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV) VALUES (" +
                           OracleSql.QLit(_txtSvcRecordId.Text) + ", " + OracleSql.QLit(_txtSvcType.Text) + ", " +
-                          ngayDv + ", " + OracleSql.QLit(ktv) + ", NULL)";
+                          ngayDv + ", " + OracleSql.QLit(ktv) + ")";
                 }
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadServicesAsync();
