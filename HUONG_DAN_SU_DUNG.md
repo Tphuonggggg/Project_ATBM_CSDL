@@ -214,6 +214,14 @@ Sau đó chạy lại script audit.
 @"script SQL/03_audit_read_logs.sql"
 ```
 
+Trong ung dung WinForms, dang nhap bang `SYS AS SYSDBA` hoac `CQ09` sau khi da chay `03_audit_setup.sql`, mo man hinh admin va chon tab `7. Audit`.
+Tab nay gom:
+
+- `Standard Audit`: doc `DBA_AUDIT_TRAIL` cho table/view/procedure/function cua `CQ09`.
+- `Fine-grained Audit`: doc `DBA_FGA_AUDIT_TRAIL` cho cac cap nhat nhay cam tren `HSBA` va `DONTHUOC`.
+- `Lenh loi`: loc cac audit record co `RETURNCODE <> 0`, huu ich de chung minh thao tac bi chan.
+- `Cau hinh`: xem `DBA_OBJ_AUDIT_OPTS` va `DBA_AUDIT_POLICIES` de chung minh audit/FGA da bat.
+
 ### Bước 7 - Backup và recovery
 
 Xem hướng dẫn chi tiết trong:

@@ -83,6 +83,17 @@ namespace WindowsFormsApp1
         private DataGridView _gridObjects;
         private DataGridView _gridColumns;
 
+        // Tab 7: Audit
+        private Button _btnAuditRefreshAll;
+        private Button _btnAuditStandard;
+        private Button _btnAuditFga;
+        private Button _btnAuditErrors;
+        private Button _btnAuditConfig;
+        private DataGridView _gridAuditStandard;
+        private DataGridView _gridAuditFga;
+        private DataGridView _gridAuditErrors;
+        private DataGridView _gridAuditConfig;
+
         public MainForm(string connectionString)
         {
             InitializeComponent();
@@ -160,6 +171,7 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildTabRevoke());
             _tabs.TabPages.Add(BuildTabViewPrivileges());
             _tabs.TabPages.Add(BuildTabObjectBrowser());
+            _tabs.TabPages.Add(BuildTabAudit());
 
             _tabs.SelectedIndexChanged += (s, e) =>
                 SetStatus($"Tab hiện tại: {_tabs.SelectedTab?.Text}");
@@ -696,6 +708,85 @@ namespace WindowsFormsApp1
             return tab;
         }
 
+        private TabPage BuildTabAudit()
+        {
+            var tab = new TabPage("7. Audit") { Padding = new Padding(12), BackColor = Color.White };
+
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
+            _btnAuditRefreshAll = PrimaryButton("Tai tat ca audit");
+            _btnAuditRefreshAll.Width = 150;
+            _btnAuditRefreshAll.Dock = DockStyle.None;
+            _btnAuditStandard = SecondaryButton("Standard Audit");
+            _btnAuditStandard.Width = 130;
+            _btnAuditStandard.Dock = DockStyle.None;
+            _btnAuditFga = SecondaryButton("FGA");
+            _btnAuditFga.Width = 90;
+            _btnAuditFga.Dock = DockStyle.None;
+            _btnAuditErrors = SecondaryButton("Lenh loi");
+            _btnAuditErrors.Width = 100;
+            _btnAuditErrors.Dock = DockStyle.None;
+            _btnAuditConfig = SecondaryButton("Cau hinh audit");
+            _btnAuditConfig.Width = 130;
+            _btnAuditConfig.Dock = DockStyle.None;
+
+            _btnAuditRefreshAll.Click += async (s, e) => await LoadAllAuditAsync();
+            _btnAuditStandard.Click += async (s, e) => await LoadStandardAuditAsync();
+            _btnAuditFga.Click += async (s, e) => await LoadFgaAuditAsync();
+            _btnAuditErrors.Click += async (s, e) => await LoadAuditErrorsAsync();
+            _btnAuditConfig.Click += async (s, e) => await LoadAuditConfigAsync();
+
+            _tips.SetToolTip(_btnAuditRefreshAll, "Tai Standard Audit, Fine-grained Audit, lenh loi va cau hinh audit cua CQ09.");
+            _tips.SetToolTip(_btnAuditStandard, "Doc DBA_AUDIT_TRAIL cho cac object/view/procedure cua phan he 2.");
+            _tips.SetToolTip(_btnAuditFga, "Doc DBA_FGA_AUDIT_TRAIL cho HSBA va DONTHUOC.");
+            _tips.SetToolTip(_btnAuditErrors, "Loc Standard Audit co RETURNCODE khac 0.");
+            _tips.SetToolTip(_btnAuditConfig, "Doc DBA_OBJ_AUDIT_OPTS va DBA_AUDIT_POLICIES.");
+
+            top.Controls.Add(_btnAuditRefreshAll);
+            top.Controls.Add(_btnAuditStandard);
+            top.Controls.Add(_btnAuditFga);
+            top.Controls.Add(_btnAuditErrors);
+            top.Controls.Add(_btnAuditConfig);
+            top.Controls.Add(new Label
+            {
+                Text = "Can chay script SQL/03_audit_setup.sql truoc khi xem log.",
+                AutoSize = true,
+                Padding = new Padding(14, 9, 0, 0),
+                ForeColor = Color.FromArgb(90, 95, 105),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic)
+            });
+
+            var pages = new TabControl { Dock = DockStyle.Fill, ItemSize = new Size(160, 28), SizeMode = TabSizeMode.Fixed };
+            _gridAuditStandard = NewGrid();
+            _gridAuditFga = NewGrid();
+            _gridAuditErrors = NewGrid();
+            _gridAuditConfig = NewGrid();
+
+            pages.TabPages.Add(GridPage("Standard Audit", "DBA_AUDIT_TRAIL - thao tac tren table/view/procedure/function", _gridAuditStandard));
+            pages.TabPages.Add(GridPage("Fine-grained Audit", "DBA_FGA_AUDIT_TRAIL - cap nhat cot nhay cam HSBA/DONTHUOC", _gridAuditFga));
+            pages.TabPages.Add(GridPage("Lenh loi", "Standard Audit co RETURNCODE khac 0", _gridAuditErrors));
+            pages.TabPages.Add(GridPage("Cau hinh", "Audit options va FGA policies dang bat cho CQ09", _gridAuditConfig));
+
+            root.Controls.Add(top, 0, 0);
+            root.Controls.Add(pages, 0, 1);
+            tab.Controls.Add(root);
+            tab.Enter += async (s, e) =>
+            {
+                if (_gridAuditStandard.DataSource == null) await LoadAllAuditAsync();
+            };
+            return tab;
+        }
+
+        private static TabPage GridPage(string text, string title, DataGridView grid)
+        {
+            var page = new TabPage(text) { Padding = new Padding(8), BackColor = Color.White };
+            page.Controls.Add(WrapGrid(title, grid));
+            return page;
+        }
+
         private static DataGridView NewGrid()
         {
             var g = new DataGridView
@@ -1104,6 +1195,150 @@ namespace WindowsFormsApp1
         }
 
         // ===== Các handler cũ để Designer compile (không còn dùng UI cũ) =====
+        // ===== Audit =====
+        private async Task LoadAllAuditAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                var standardTask = QueryStandardAuditAsync();
+                var fgaTask = QueryFgaAuditAsync();
+                var errorsTask = QueryAuditErrorsAsync();
+                var configTask = QueryAuditConfigAsync();
+                await Task.WhenAll(standardTask, fgaTask, errorsTask, configTask);
+
+                _gridAuditStandard.DataSource = standardTask.Result;
+                _gridAuditFga.DataSource = fgaTask.Result;
+                _gridAuditErrors.DataSource = errorsTask.Result;
+                _gridAuditConfig.DataSource = configTask.Result;
+                SetStatus("Da tai audit log va cau hinh audit cua CQ09.");
+            }
+            catch (Exception ex) { ShowAuditError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task LoadStandardAuditAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                _gridAuditStandard.DataSource = await QueryStandardAuditAsync();
+                SetStatus("Da tai Standard Audit tu DBA_AUDIT_TRAIL.");
+            }
+            catch (Exception ex) { ShowAuditError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task LoadFgaAuditAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                _gridAuditFga.DataSource = await QueryFgaAuditAsync();
+                SetStatus("Da tai Fine-grained Audit tu DBA_FGA_AUDIT_TRAIL.");
+            }
+            catch (Exception ex) { ShowAuditError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task LoadAuditErrorsAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                _gridAuditErrors.DataSource = await QueryAuditErrorsAsync();
+                SetStatus("Da tai cac lenh audit that bai.");
+            }
+            catch (Exception ex) { ShowAuditError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private async Task LoadAuditConfigAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                _gridAuditConfig.DataSource = await QueryAuditConfigAsync();
+                SetStatus("Da tai cau hinh Standard Audit va FGA.");
+            }
+            catch (Exception ex) { ShowAuditError(ex); }
+            finally { SetBusy(false); }
+        }
+
+        private Task<DataTable> QueryStandardAuditAsync()
+        {
+            const string sql =
+                "SELECT username, action_name, owner, obj_name, " +
+                "TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time, " +
+                "returncode, SUBSTR(sql_text, 1, 1000) AS sql_text " +
+                "FROM dba_audit_trail " +
+                "WHERE owner = 'CQ09' " +
+                "   OR obj_name IN (" +
+                "        'BENHNHAN', 'HSBA', 'DONTHUOC', 'HSBA_DV', " +
+                "        'VW_BENHNHAN', 'VW_BACSI_HSBA', 'VW_BACSI_DONTHUOC', " +
+                "        'VW_KTV_HSBA_DV', 'P_AUDIT_DEMO_MARK', 'F_AUDIT_DEMO_USER'" +
+                "   ) " +
+                "ORDER BY timestamp DESC " +
+                "FETCH FIRST 80 ROWS ONLY";
+            return OracleSql.QueryAsync(_connectionString, sql);
+        }
+
+        private Task<DataTable> QueryFgaAuditAsync()
+        {
+            const string sql =
+                "SELECT db_user, object_schema, object_name, policy_name, " +
+                "TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time, " +
+                "statement_type, SUBSTR(sql_text, 1, 1000) AS sql_text " +
+                "FROM dba_fga_audit_trail " +
+                "WHERE object_schema = 'CQ09' " +
+                "  AND object_name IN ('HSBA', 'DONTHUOC') " +
+                "ORDER BY timestamp DESC " +
+                "FETCH FIRST 80 ROWS ONLY";
+            return OracleSql.QueryAsync(_connectionString, sql);
+        }
+
+        private Task<DataTable> QueryAuditErrorsAsync()
+        {
+            const string sql =
+                "SELECT username, action_name, owner, obj_name, " +
+                "TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time, " +
+                "returncode, SUBSTR(sql_text, 1, 1000) AS sql_text " +
+                "FROM dba_audit_trail " +
+                "WHERE owner = 'CQ09' " +
+                "  AND returncode <> 0 " +
+                "ORDER BY timestamp DESC " +
+                "FETCH FIRST 50 ROWS ONLY";
+            return OracleSql.QueryAsync(_connectionString, sql);
+        }
+
+        private Task<DataTable> QueryAuditConfigAsync()
+        {
+            const string sql =
+                "SELECT 'STANDARD' AS audit_type, owner, object_name, object_type, " +
+                "CAST(NULL AS VARCHAR2(128)) AS policy_name, " +
+                "'SEL=' || sel || '; INS=' || ins || '; UPD=' || upd || '; DEL=' || del || '; EXE=' || exe AS detail " +
+                "FROM dba_obj_audit_opts " +
+                "WHERE owner = 'CQ09' " +
+                "UNION ALL " +
+                "SELECT 'FGA' AS audit_type, object_schema AS owner, object_name, " +
+                "CAST(NULL AS VARCHAR2(30)) AS object_type, policy_name, " +
+                "'COLUMNS=' || policy_column || '; OPTS=' || policy_column_options || '; ENABLED=' || enabled AS detail " +
+                "FROM dba_audit_policies " +
+                "WHERE object_schema = 'CQ09' " +
+                "ORDER BY audit_type, object_name, policy_name";
+            return OracleSql.QueryAsync(_connectionString, sql);
+        }
+
+        private void ShowAuditError(Exception ex)
+        {
+            MessageBox.Show(this,
+                ex.Message + Environment.NewLine + Environment.NewLine +
+                "Neu loi lien quan DBA_AUDIT_TRAIL/DBA_FGA_AUDIT_TRAIL, hay dang nhap SYSDBA hoac chay script SQL/03_audit_setup.sql de cap quyen cho CQ09.",
+                "NHOM 09 - Audit",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+
         private void chkSysdba_CheckedChanged(object sender, EventArgs e) { }
         private async void btnApplyConn_Click(object sender, EventArgs e) { await Task.CompletedTask; }
         private async void btnTestConn_Click(object sender, EventArgs e) { await Task.CompletedTask; }
