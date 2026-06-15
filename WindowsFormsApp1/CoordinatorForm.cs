@@ -197,7 +197,7 @@ namespace WindowsFormsApp1
             _gridRecords.SelectionChanged += (s, e) => BindSelectedRecord();
             layout.Controls.Add(CreateGroup("Ho so benh an va bac si phu trach", _gridRecords), 0, 0);
 
-            var detail = new GroupBox { Text = "Tao HSBA va phan cong bac si / khoa", Dock = DockStyle.Fill, Padding = new Padding(12, 18, 12, 12), ForeColor = Color.FromArgb(33, 64, 107), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) };
+            var detail = new GroupBox { Text = "Tao HSBA / cap nhat bac si va khoa", Dock = DockStyle.Fill, Padding = new Padding(12, 18, 12, 12), ForeColor = Color.FromArgb(33, 64, 107), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) };
             var form = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 7 };
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 115));
             form.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -213,7 +213,7 @@ namespace WindowsFormsApp1
 
             AddRow(form, "Ma HSBA:", _txtRecordId, 0);
             AddRow(form, "Benh nhan:", _cboRecordPatient, 1);
-            AddRow(form, "Ngay:", _txtRecordDate, 2);
+            AddRow(form, "Ngay tao:", _txtRecordDate, 2);
             AddRow(form, "Ma khoa:", _txtRecordDepartment, 3);
             AddRow(form, "Bac si:", _cboRecordDoctor, 4);
 
@@ -418,15 +418,13 @@ namespace WindowsFormsApp1
                 string sql;
                 if (_isNewRecord)
                 {
-                    sql = "INSERT INTO CQ09.HSBA(MAHSBA, MABN, NGAY, CHANDOAN, DIEUTRI, MABS, MAKHOA, KETLUAN) VALUES (" +
+                    sql = "INSERT INTO CQ09.HSBA(MAHSBA, MABN, NGAY, MABS, MAKHOA) VALUES (" +
                           OracleSql.QLit(_txtRecordId.Text) + ", " + OracleSql.QLit(patient) + ", " + recordDate +
-                          ", NULL, NULL, " + OracleSql.QLit(doctor) + ", " + OracleSql.QLit(_txtRecordDepartment.Text) + ", NULL)";
+                          ", " + OracleSql.QLit(doctor) + ", " + OracleSql.QLit(_txtRecordDepartment.Text) + ")";
                 }
                 else
                 {
                     sql = "UPDATE CQ09.HSBA SET " +
-                          "MABN = " + OracleSql.QLit(patient) + ", " +
-                          "NGAY = " + recordDate + ", " +
                           "MAKHOA = " + OracleSql.QLit(_txtRecordDepartment.Text) + ", " +
                           "MABS = " + OracleSql.QLit(doctor) + " " +
                           "WHERE MAHSBA = " + OracleSql.QLit(_txtRecordId.Text);
@@ -470,9 +468,9 @@ namespace WindowsFormsApp1
                 string sql;
                 if (_isNewService)
                 {
-                    sql = "INSERT INTO CQ09.HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV, KETQUA) VALUES (" +
+                    sql = "INSERT INTO CQ09.HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV) VALUES (" +
                           OracleSql.QLit(record) + ", " + OracleSql.QLit(_txtServiceType.Text) + ", " +
-                          serviceDate + ", " + OracleSql.QLit(technician) + ", NULL)";
+                          serviceDate + ", " + OracleSql.QLit(technician) + ")";
                 }
                 else
                 {
@@ -519,6 +517,8 @@ namespace WindowsFormsApp1
         {
             _isNewRecord = true;
             _txtRecordId.ReadOnly = false;
+            _cboRecordPatient.Enabled = true;
+            _txtRecordDate.ReadOnly = false;
             _txtRecordId.Text = "";
             _txtRecordDate.Text = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
             _txtRecordDepartment.Text = "";
@@ -532,6 +532,8 @@ namespace WindowsFormsApp1
         {
             _isNewService = true;
             _txtServiceType.ReadOnly = false;
+            _cboServiceRecord.Enabled = true;
+            _txtServiceDate.ReadOnly = false;
             if (_cboServiceRecord.Items.Count > 0) _cboServiceRecord.SelectedIndex = 0;
             _txtServiceType.Text = "";
             _txtServiceDate.Text = DateTime.Today.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
@@ -568,6 +570,8 @@ namespace WindowsFormsApp1
             if (_gridRecords.CurrentRow == null || _isNewRecord) return;
             var r = _gridRecords.CurrentRow;
             _txtRecordId.ReadOnly = true;
+            _cboRecordPatient.Enabled = false;
+            _txtRecordDate.ReadOnly = true;
             _txtRecordId.Text = Cell(r, "MAHSBA");
             _cboRecordPatient.SelectedValue = Cell(r, "MABN");
             _txtRecordDate.Text = Cell(r, "NGAY");
@@ -580,6 +584,8 @@ namespace WindowsFormsApp1
             if (_gridServices.CurrentRow == null || _isNewService) return;
             var r = _gridServices.CurrentRow;
             _txtServiceType.ReadOnly = true;
+            _cboServiceRecord.Enabled = false;
+            _txtServiceDate.ReadOnly = true;
             _cboServiceRecord.SelectedValue = Cell(r, "MAHSBA");
             _txtServiceType.Text = Cell(r, "LOAIDV");
             _txtServiceDate.Text = Cell(r, "NGAYDV");
