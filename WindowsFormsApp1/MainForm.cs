@@ -83,6 +83,11 @@ namespace WindowsFormsApp1
         private DataGridView _gridObjects;
         private DataGridView _gridColumns;
 
+        // Tab 7: Nhật ký kiểm toán
+        private DataGridView _gridStandardAudit;
+        private DataGridView _gridFgaAudit;
+        private Button _btnAuditRefresh;
+
         public MainForm(string connectionString)
         {
             InitializeComponent();
@@ -160,9 +165,16 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildTabRevoke());
             _tabs.TabPages.Add(BuildTabViewPrivileges());
             _tabs.TabPages.Add(BuildTabObjectBrowser());
+            _tabs.TabPages.Add(BuildTabAuditLogs());
 
-            _tabs.SelectedIndexChanged += (s, e) =>
+            _tabs.SelectedIndexChanged += async (s, e) =>
+            {
                 SetStatus($"Tab hiện tại: {_tabs.SelectedTab?.Text}");
+                if (_tabs.SelectedTab != null && _tabs.SelectedTab.Text.Contains("kiểm toán"))
+                {
+                    await RefreshAuditLogsAsync();
+                }
+            };
         }
 
         private void SetStatus(string text)
@@ -694,6 +706,62 @@ namespace WindowsFormsApp1
             root.Controls.Add(grids, 0, 1);
             tab.Controls.Add(root);
             return tab;
+        }
+
+        private TabPage BuildTabAuditLogs()
+        {
+            var tab = new TabPage("7. Nhật ký kiểm toán") { Padding = new Padding(12), BackColor = Color.White };
+
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
+            _btnAuditRefresh = new Button 
+            { 
+                Text = "↻ Tải lại nhật ký", 
+                Width = 160, 
+                Height = 28, 
+                BackColor = Color.FromArgb(33, 64, 107), 
+                ForeColor = Color.White, 
+                FlatStyle = FlatStyle.Flat, 
+                Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold) 
+            };
+            _btnAuditRefresh.Click += async (s, e) => await RefreshAuditLogsAsync();
+            top.Controls.Add(_btnAuditRefresh);
+
+            var grids = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 320 };
+            _gridStandardAudit = NewGrid();
+            _gridFgaAudit = NewGrid();
+            grids.Panel1.Controls.Add(WrapGrid("① Kiểm toán chuẩn (Standard Audit) — dba_audit_trail (owner = CQ09)", _gridStandardAudit));
+            grids.Panel2.Controls.Add(WrapGrid("② Kiểm toán chi tiết (Fine-Grained Audit) — dba_fga_audit_trail (owner = CQ09)", _gridFgaAudit));
+
+            root.Controls.Add(top, 0, 0);
+            root.Controls.Add(grids, 0, 1);
+            tab.Controls.Add(root);
+
+            return tab;
+        }
+
+        private async Task RefreshAuditLogsAsync()
+        {
+            SetBusy(true);
+            try
+            {
+                var dtStandard = await _admin.GetStandardAuditLogsAsync();
+                _gridStandardAudit.DataSource = dtStandard;
+
+                var dtFga = await _admin.GetFgaAuditLogsAsync();
+                _gridFgaAudit.DataSource = dtFga;
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
         }
 
         private static DataGridView NewGrid()

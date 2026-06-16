@@ -321,6 +321,33 @@ order by owner, object_name, priv_level, column_name, privilege";
             var sql = $"select column_id, column_name, data_type, data_length, nullable from dba_tab_columns where owner={OracleHelper.QuoteLiteral(owner)} and table_name={OracleHelper.QuoteLiteral(name)} order by column_id";
             return OracleHelper.QueryAsync(_connectionString, sql);
         }
+
+        // ===== AUDIT LOGS =====
+        public Task<DataTable> GetStandardAuditLogsAsync()
+        {
+            var sql = @"
+                select username, action_name, owner, obj_name, 
+                       to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time, 
+                       returncode 
+                from dba_audit_trail 
+                where owner = 'CQ09' 
+                order by timestamp desc 
+                fetch first 100 rows only";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public Task<DataTable> GetFgaAuditLogsAsync()
+        {
+            var sql = @"
+                select db_user, object_name, policy_name, 
+                       to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time, 
+                       sql_text 
+                from dba_fga_audit_trail 
+                where object_schema = 'CQ09' 
+                order by timestamp desc 
+                fetch first 100 rows only";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
     }
 }
 
