@@ -124,6 +124,23 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildPatientTab());
             _tabs.TabPages.Add(BuildProfileTab());
 
+            _tabs.SelectedIndexChanged += (s, e) =>
+            {
+                if (_tabs.SelectedTab != null)
+                {
+                    if (_tabs.SelectedTab.Text.Contains("Don thuoc"))
+                    {
+                        _gridPrescriptions.ClearSelection();
+                        BindSelectedPrescription();
+                    }
+                    else if (_tabs.SelectedTab.Text.Contains("Dich vu"))
+                    {
+                        _gridServices.ClearSelection();
+                        BindSelectedService();
+                    }
+                }
+            };
+
             Controls.Add(_tabs);
             Controls.Add(header);
             Controls.Add(_statusStrip);
@@ -490,6 +507,7 @@ namespace WindowsFormsApp1
         {
             var sql = "SELECT MAHSBA, TO_CHAR(NGAYDT, 'DD/MM/YYYY') AS NGAYDT, TENTHUOC, LIEUDUNG FROM CQ09.VW_BACSI_DONTHUOC ORDER BY NGAYDT DESC, MAHSBA, TENTHUOC";
             _gridPrescriptions.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
+            _gridPrescriptions.ClearSelection();
             BindSelectedPrescription();
         }
 
@@ -571,6 +589,7 @@ namespace WindowsFormsApp1
                       "LEFT JOIN CQ09.VW_KTV_LIST ktv ON ktv.MANV = dv.MAKTV " +
                       "ORDER BY dv.NGAYDV DESC, dv.MAHSBA, dv.LOAIDV";
             _gridServices.DataSource = await OracleSql.QueryAsync(_connectionString, sql);
+            _gridServices.ClearSelection();
             BindSelectedService();
         }
 
@@ -665,7 +684,7 @@ namespace WindowsFormsApp1
         private async Task LoadProfileAsync()
         {
             _lblStatus.Text = "Dang tai ho so ca nhan...";
-            var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.VW_NHANVIEN_CANHAN";
+            var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.VW_NHANVIEN_CANHAN WHERE MANV = SYS_CONTEXT('USERENV', 'SESSION_USER')";
             var dt = await OracleSql.QueryAsync(_connectionString, sql);
             if (dt.Rows.Count == 0)
             {
@@ -727,8 +746,18 @@ namespace WindowsFormsApp1
 
         private void BindSelectedPrescription()
         {
-            if (_gridPrescriptions.CurrentRow == null) return;
-            var r = _gridPrescriptions.CurrentRow;
+            if (_gridPrescriptions.CurrentRow == null || _gridPrescriptions.SelectedRows.Count == 0)
+            {
+                _txtRxRecordId.Text = _gridRecords.CurrentRow != null ? Cell(_gridRecords.CurrentRow, "MAHSBA") : "";
+                _txtRxDate.Text = _gridRecords.CurrentRow != null ? Cell(_gridRecords.CurrentRow, "NGAY") : "";
+                _txtMedicine.Text = "";
+                _txtDosage.Text = "";
+                _originalRxRecordId = "";
+                _originalRxDate = "";
+                _originalRxMedicine = "";
+                return;
+            }
+            var r = _gridPrescriptions.SelectedRows[0];
             _txtRxRecordId.Text = Cell(r, "MAHSBA");
             _txtRxDate.Text = Cell(r, "NGAYDT");
             _txtMedicine.Text = Cell(r, "TENTHUOC");
@@ -740,8 +769,16 @@ namespace WindowsFormsApp1
 
         private void BindSelectedService()
         {
-            if (_gridServices.CurrentRow == null) return;
-            var r = _gridServices.CurrentRow;
+            if (_gridServices.CurrentRow == null || _gridServices.SelectedRows.Count == 0)
+            {
+                _txtSvcRecordId.Text = _gridRecords.CurrentRow != null ? Cell(_gridRecords.CurrentRow, "MAHSBA") : "";
+                _txtSvcType.Text = "";
+                _txtSvcDate.Text = _gridRecords.CurrentRow != null ? Cell(_gridRecords.CurrentRow, "NGAY") : "";
+                _txtSvcResult.Text = "";
+                _cboTechnician.SelectedIndex = -1;
+                return;
+            }
+            var r = _gridServices.SelectedRows[0];
             _txtSvcRecordId.Text = Cell(r, "MAHSBA");
             _txtSvcType.Text = Cell(r, "LOAIDV");
             _txtSvcDate.Text = Cell(r, "NGAYDV");

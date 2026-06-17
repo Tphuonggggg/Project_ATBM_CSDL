@@ -517,7 +517,7 @@ namespace WindowsFormsApp1
             _lblStatus.Text = "Đang tải thông tin hồ sơ nhân sự từ Oracle...";
             try
             {
-                var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.vw_nhanvien_canhan";
+                var sql = "SELECT MANV, HOTEN, PHAI, TO_CHAR(NGAYSINH, 'DD/MM/YYYY') AS NGAYSINH, CMND, QUEQUAN, SODT, VAITRO, CHUYENKHOA FROM CQ09.vw_nhanvien_canhan WHERE MANV = SYS_CONTEXT('USERENV', 'SESSION_USER')";
                 var dt = await OracleSql.QueryAsync(_connectionString, sql);
                 if (dt != null && dt.Rows.Count > 0)
                 {
