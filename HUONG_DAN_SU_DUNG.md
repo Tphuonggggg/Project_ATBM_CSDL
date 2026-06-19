@@ -372,6 +372,80 @@ u8 / ATBM123
 
 Ứng dụng mở màn hình `OlsDemoForm` và hiển thị các thông báo mà user được phép đọc từ `CQ09.THONGBAO`.
 
+### 7.7. Hướng dẫn test yêu cầu 2 - OLS
+
+Checklist trước khi test:
+
+- Đã chạy đúng thứ tự các script: `StoredProcedures.sql`, `schema_data.sql`, `role.sql`, `VPD.sql`, `OLS_setup.sql`.
+- Đang kết nối đúng PDB `XEPDB1`.
+- `OLS_setup.sql` đã được chạy bằng tài khoản có quyền SYS/OLS để bật OLS, tạo policy, tạo user `u1` đến `u8` và gán nhãn.
+
+Kết quả kỳ vọng khi đọc bảng `CQ09.THONGBAO`:
+
+| User | Thông báo phải thấy | Số dòng |
+|---|---|---:|
+| `u1` | `t1`, `t2`, `t3`, `t4`, `t5`, `t6`, `t7` | 7 |
+| `u2` | `t1`, `t3` | 2 |
+| `u3` | `t1`, `t3` | 2 |
+| `u4` | `t1` | 1 |
+| `u5` | `t1` | 1 |
+| `u6` | `t1`, `t3` | 2 |
+| `u7` | `t1`, `t3`, `t4`, `t5`, `t6`, `t7` | 6 |
+| `u8` | `t1`, `t6` | 2 |
+
+Test thủ công bằng SQL*Plus hoặc SQL Developer:
+
+```sql
+CONNECT u1/ATBM123@XEPDB1
+SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM
+FROM CQ09.THONGBAO
+ORDER BY MATHONGBAO;
+
+CONNECT u4/ATBM123@XEPDB1
+SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM
+FROM CQ09.THONGBAO
+ORDER BY MATHONGBAO;
+
+CONNECT u8/ATBM123@XEPDB1
+SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM
+FROM CQ09.THONGBAO
+ORDER BY MATHONGBAO;
+```
+
+Khi cần test đầy đủ, lặp lại cùng truy vấn cho `u1` đến `u8` và đối chiếu với bảng kết quả kỳ vọng phía trên.
+
+Test bằng ứng dụng WinForms:
+
+1. Mở app `NHOM09`.
+2. Đăng nhập lần lượt `u1`, `u4`, `u7`, `u8` với mật khẩu `ATBM123`.
+3. Kiểm tra màn hình `OlsDemoForm` hiển thị đúng số dòng và đúng danh sách mã thông báo theo bảng kỳ vọng.
+4. Chụp màn hình phần số dòng hiển thị và danh sách mã thông báo để làm minh chứng demo.
+
+Truy vấn kiểm tra cấu hình OLS sau khi chạy script:
+
+```sql
+SELECT POLICY_NAME, SCHEMA_NAME, TABLE_NAME
+FROM DBA_SA_TABLE_POLICIES
+WHERE POLICY_NAME = 'OLS_THONGBAO_POLICY'
+  AND SCHEMA_NAME = 'CQ09'
+  AND TABLE_NAME = 'THONGBAO';
+
+SELECT USER_NAME, MAX_READ_LABEL, DEF_LABEL
+FROM DBA_SA_USER_LABELS
+WHERE POLICY_NAME = 'OLS_THONGBAO_POLICY'
+  AND USER_NAME IN ('U1','U2','U3','U4','U5','U6','U7','U8')
+ORDER BY USER_NAME;
+```
+
+Lỗi thường gặp khi test OLS:
+
+| Hiện tượng | Cách kiểm tra/xử lý |
+|---|---|
+| Không đăng nhập được `u1` đến `u8` | Chạy lại `OLS_setup.sql`, kiểm tra user đã được tạo và unlock. |
+| User thấy sai danh sách thông báo | Kiểm tra policy đã apply lên `CQ09.THONGBAO` và nhãn user đã gán đúng bằng truy vấn cấu hình ở trên. |
+| User không thấy dữ liệu | Kiểm tra `GRANT SELECT ON CQ09.THONGBAO TO uX` đã có, sau đó đăng xuất và đăng nhập lại. |
+| Truy vấn báo lỗi OLS/LBACSYS | Chạy `OLS_setup.sql` bằng tài khoản đủ quyền SYS/OLS và kiểm tra Oracle edition có hỗ trợ OLS. |
+
 ## 8. Kịch bản demo đề xuất
 
 ### Kịch bản 1 - Quản trị user/role
