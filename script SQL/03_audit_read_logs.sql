@@ -1,21 +1,32 @@
 -- =============================================================
--- YEU CAU 3 - DOC LOG STANDARD AUDIT VA FGA
+-- YEU CAU 3 - DOC LOG ORACLE 21c UNIFIED AUDITING/FGA
 --
 -- Chay bang SYS AS SYSDBA hoac CQ09 tren PDB XEPDB1.
+-- Unified Audit Policy doc tu UNIFIED_AUDIT_TRAIL.
+-- FGA co the nam trong UNIFIED_AUDIT_TRAIL (pure unified auditing) hoac
+-- DBA_FGA_AUDIT_TRAIL (mixed mode, v$option 'Unified Auditing' = FALSE).
 -- =============================================================
 
 SET DEFINE OFF;
-SET LINESIZE 220;
+SET LINESIZE 260;
 SET PAGESIZE 200;
-COLUMN username FORMAT A14;
-COLUMN db_user FORMAT A14;
-COLUMN action_name FORMAT A16;
-COLUMN obj_name FORMAT A24;
-COLUMN object_name FORMAT A24;
-COLUMN policy_name FORMAT A32;
+SET LONG 20000;
+SET LONGCHUNKSIZE 20000;
+
 COLUMN audit_time FORMAT A19;
-COLUMN returncode FORMAT 999999;
-COLUMN sql_text FORMAT A90;
+COLUMN dbusername FORMAT A12;
+COLUMN audit_type FORMAT A18;
+COLUMN policy_name FORMAT A34;
+COLUMN action_name FORMAT A14;
+COLUMN object_full_name FORMAT A34;
+COLUMN status FORMAT A10;
+COLUMN return_code FORMAT 999999;
+COLUMN total FORMAT 999999;
+COLUMN sql_text_short FORMAT A95;
+COLUMN enabled_option FORMAT A16;
+COLUMN entity_name FORMAT A18;
+COLUMN success FORMAT A7;
+COLUMN failure FORMAT A7;
 
 BEGIN
     EXECUTE IMMEDIATE 'ALTER SESSION SET CONTAINER = XEPDB1';
@@ -24,48 +35,127 @@ EXCEPTION
 END;
 /
 
-PROMPT ===== STANDARD AUDIT - DBA_AUDIT_TRAIL =====
+PROMPT ===== 1. POLICY DANG ENABLE =====
 
-SELECT username,
+SELECT policy_name,
+       enabled_option,
+       entity_name,
+       success,
+       failure
+FROM audit_unified_enabled_policies
+WHERE policy_name LIKE 'UA_CQ09_%'
+ORDER BY policy_name, entity_name;
+
+PROMPT ===== 2. TONG HOP LOG THEO POLICY / USER / THANH CONG-THAT BAI =====
+
+SELECT NVL(unified_audit_policies, fga_policy_name) AS policy_name,
+       dbusername,
+       CASE WHEN return_code = 0 THEN 'SUCCESS' ELSE 'FAILED' END AS status,
+       COUNT(*) AS total
+FROM unified_audit_trail
+WHERE dbusername IN ('BS001', 'BS002', 'KTV01', 'KTV02', 'BN000001')
+  AND (
+        unified_audit_policies LIKE '%UA_CQ09_%'
+        OR fga_policy_name LIKE 'FGA_CQ09_%'
+      )
+GROUP BY NVL(unified_audit_policies, fga_policy_name),
+         dbusername,
+         CASE WHEN return_code = 0 THEN 'SUCCESS' ELSE 'FAILED' END
+ORDER BY policy_name, dbusername, status;
+
+PROMPT ===== 3. CHI TIET 100 LOG MOI NHAT CUA NHOM =====
+
+SELECT TO_CHAR(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       dbusername,
+       audit_type,
+       NVL(unified_audit_policies, fga_policy_name) AS policy_name,
        action_name,
-       owner,
-       obj_name,
-       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
-       returncode
-FROM dba_audit_trail
-WHERE owner = 'CQ09'
-   OR obj_name IN (
-        'BENHNHAN', 'HSBA', 'DONTHUOC', 'HSBA_DV',
-        'VW_BENHNHAN', 'VW_BACSI_HSBA', 'VW_BACSI_DONTHUOC',
-        'VW_KTV_HSBA_DV', 'P_AUDIT_DEMO_MARK', 'F_AUDIT_DEMO_USER'
-   )
-ORDER BY timestamp DESC
+       object_schema || '.' || object_name AS object_full_name,
+       CASE WHEN return_code = 0 THEN 'SUCCESS' ELSE 'FAILED' END AS status,
+       return_code,
+       REPLACE(REPLACE(DBMS_LOB.SUBSTR(sql_text, 95, 1), CHR(10), ' '), CHR(13), ' ') AS sql_text_short
+FROM unified_audit_trail
+WHERE dbusername IN ('BS001', 'BS002', 'KTV01', 'KTV02', 'BN000001')
+  AND (
+        unified_audit_policies LIKE '%UA_CQ09_%'
+        OR fga_policy_name LIKE 'FGA_CQ09_%'
+      )
+ORDER BY event_timestamp DESC
+FETCH FIRST 100 ROWS ONLY;
+
+PROMPT ===== 4. RIENG CAC THAO TAC THAT BAI / VI PHAM QUYEN =====
+PROMPT RETURN_CODE = 0 la thanh cong; RETURN_CODE khac 0 la ma loi Oracle.
+
+SELECT TO_CHAR(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       dbusername,
+       audit_type,
+       NVL(unified_audit_policies, fga_policy_name) AS policy_name,
+       action_name,
+       object_schema || '.' || object_name AS object_full_name,
+       return_code,
+       REPLACE(REPLACE(DBMS_LOB.SUBSTR(sql_text, 95, 1), CHR(10), ' '), CHR(13), ' ') AS sql_text_short
+FROM unified_audit_trail
+WHERE dbusername IN ('BS001', 'BS002', 'KTV01', 'KTV02', 'BN000001')
+  AND return_code <> 0
+  AND (
+        unified_audit_policies LIKE '%UA_CQ09_%'
+        OR object_schema = 'CQ09'
+      )
+ORDER BY event_timestamp DESC
 FETCH FIRST 50 ROWS ONLY;
 
-PROMPT ===== FINE-GRAINED AUDIT - DBA_FGA_AUDIT_TRAIL =====
+PROMPT ===== 5A. RIENG FGA - PURE UNIFIED AUDITING - UNIFIED_AUDIT_TRAIL =====
 
-SELECT db_user,
-       object_schema,
-       object_name,
+SELECT TO_CHAR(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       dbusername,
+       audit_type,
+       fga_policy_name AS policy_name,
+       action_name,
+       object_schema || '.' || object_name AS object_full_name,
+       CASE WHEN return_code = 0 THEN 'SUCCESS' ELSE 'FAILED' END AS status,
+       return_code,
+       REPLACE(REPLACE(DBMS_LOB.SUBSTR(sql_text, 95, 1), CHR(10), ' '), CHR(13), ' ') AS sql_text_short
+FROM unified_audit_trail
+WHERE audit_type = 'FineGrainedAudit'
+  AND object_schema = 'CQ09'
+  AND fga_policy_name LIKE 'FGA_CQ09_%'
+ORDER BY event_timestamp DESC
+FETCH FIRST 50 ROWS ONLY;
+
+PROMPT ===== 5B. RIENG FGA - MIXED MODE - DBA_FGA_AUDIT_TRAIL =====
+
+SELECT TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       db_user AS dbusername,
+       'FineGrainedAudit' AS audit_type,
        policy_name,
-       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
-       sql_text
+       statement_type AS action_name,
+       object_schema || '.' || object_name AS object_full_name,
+       'SUCCESS' AS status,
+       0 AS return_code,
+       REPLACE(REPLACE(TO_CHAR(SUBSTR(sql_text, 1, 95)), CHR(10), ' '), CHR(13), ' ') AS sql_text_short
 FROM dba_fga_audit_trail
 WHERE object_schema = 'CQ09'
-  AND object_name IN ('HSBA', 'DONTHUOC')
+  AND policy_name LIKE 'FGA_CQ09_%'
 ORDER BY timestamp DESC
 FETCH FIRST 50 ROWS ONLY;
 
-PROMPT ===== CAC LENH LOI QUAN TRONG =====
-PROMPT RETURNCODE = 0 la thanh cong; khac 0 la that bai.
+PROMPT ===== 6. RAW VIEW HO TRO DOI CHIEU NHANH - UNIFIED_AUDIT_TRAIL =====
 
-SELECT username,
+SELECT TO_CHAR(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       dbusername,
+       audit_type,
+       unified_audit_policies,
+       fga_policy_name,
        action_name,
-       obj_name,
-       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
-       returncode
-FROM dba_audit_trail
-WHERE owner = 'CQ09'
-  AND returncode <> 0
-ORDER BY timestamp DESC
-FETCH FIRST 30 ROWS ONLY;
+       object_schema,
+       object_name,
+       return_code
+FROM unified_audit_trail
+WHERE dbusername IN ('BS001', 'BS002', 'KTV01', 'KTV02', 'BN000001')
+  AND (
+        object_schema = 'CQ09'
+        OR unified_audit_policies LIKE '%UA_CQ09_%'
+        OR fga_policy_name LIKE 'FGA_CQ09_%'
+      )
+ORDER BY event_timestamp DESC
+FETCH FIRST 100 ROWS ONLY;

@@ -323,30 +323,140 @@ order by owner, object_name, priv_level, column_name, privilege";
         }
 
         // ===== AUDIT LOGS =====
-        public Task<DataTable> GetStandardAuditLogsAsync()
+        public Task<DataTable> GetStandardAuditLogsAsync(string username = null)
         {
+            var userCondition = BuildAuditUserCondition("dbusername", username);
             var sql = @"
-                select username, action_name, owner, obj_name, 
-                       to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time, 
-                       returncode 
-                from dba_audit_trail 
-                where owner = 'CQ09' 
-                order by timestamp desc 
+                select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       dbusername,
+                       audit_type,
+                       unified_audit_policies as policy_name,
+                       action_name,
+                       object_schema || '.' || object_name as object_name,
+                       case when return_code = 0 then 'SUCCESS' else 'FAILED' end as status,
+                       return_code,
+                       replace(replace(dbms_lob.substr(sql_text, 120, 1), chr(10), ' '), chr(13), ' ') as sql_text
+                from unified_audit_trail
+                where " + userCondition + @"
+                  and unified_audit_policies like '%UA_CQ09_%'
+                order by event_timestamp desc
                 fetch first 100 rows only";
             return OracleHelper.QueryAsync(_connectionString, sql);
         }
 
-        public Task<DataTable> GetFgaAuditLogsAsync()
+        public async Task<DataTable> GetFgaAuditLogsAsync(string username = null)
         {
-            var sql = @"
-                select db_user, object_name, policy_name, 
-                       to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time, 
-                       sql_text 
-                from dba_fga_audit_trail 
-                where object_schema = 'CQ09' 
-                order by timestamp desc 
+            var unifiedUserCondition = BuildAuditUserCondition("dbusername", username);
+            var legacyUserCondition = BuildAuditUserCondition("db_user", username);
+
+            var unifiedSql = @"
+                select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       dbusername,
+                       audit_type,
+                       fga_policy_name as policy_name,
+                       action_name,
+                       object_schema || '.' || object_name as object_name,
+                       case when return_code = 0 then 'SUCCESS' else 'FAILED' end as status,
+                       return_code,
+                       replace(replace(dbms_lob.substr(sql_text, 120, 1), chr(10), ' '), chr(13), ' ') as sql_text,
+                       'UNIFIED_AUDIT_TRAIL' as source
+                from unified_audit_trail
+                where audit_type = 'FineGrainedAudit'
+                  and " + unifiedUserCondition + @"
+                  and object_schema = 'CQ09'
+                  and fga_policy_name in ('FGA_CQ09_DONTHUOC_UPDATE', 'FGA_CQ09_HSBA_UPDATE')
+                order by event_timestamp desc
                 fetch first 100 rows only";
-            return OracleHelper.QueryAsync(_connectionString, sql);
+
+            var legacySql = @"
+                select to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       db_user as dbusername,
+                       'FineGrainedAudit' as audit_type,
+                       policy_name,
+                       statement_type as action_name,
+                       object_schema || '.' || object_name as object_name,
+                       'SUCCESS' as status,
+                       0 as return_code,
+                       to_char(substr(sql_text, 1, 120)) as sql_text,
+                       'DBA_FGA_AUDIT_TRAIL' as source
+                from dba_fga_audit_trail
+                where object_schema = 'CQ09'
+                  and " + legacyUserCondition + @"
+                  and policy_name in ('FGA_CQ09_DONTHUOC_UPDATE', 'FGA_CQ09_HSBA_UPDATE')
+                order by timestamp desc
+                fetch first 100 rows only";
+
+            var result = CreateFgaAuditTable();
+            await MergeAuditRowsAsync(result, unifiedSql);
+            await MergeAuditRowsAsync(result, legacySql);
+
+            var view = result.DefaultView;
+            view.Sort = "AUDIT_TIME DESC, SOURCE ASC";
+            return view.ToTable();
+        }
+
+        private static string BuildAuditUserCondition(string columnName, string username)
+        {
+            var user = (username ?? string.Empty).Trim().ToUpperInvariant();
+            if (user.Length == 0 || user == "TẤT CẢ" || user == "TAT CA" || user == "ALL")
+                return columnName + " in ('BS001', 'BS002', 'KTV01', 'KTV02', 'BN000001')";
+
+            switch (user)
+            {
+                case "BS001":
+                case "BS002":
+                case "KTV01":
+                case "KTV02":
+                case "BN000001":
+                    return columnName + " = " + OracleHelper.QuoteLiteral(user);
+                default:
+                    return "1 = 0";
+            }
+        }
+
+        private async Task MergeAuditRowsAsync(DataTable target, string sql)
+        {
+            try
+            {
+                var source = await OracleHelper.QueryAsync(_connectionString, sql);
+                foreach (DataRow row in source.Rows)
+                {
+                    var newRow = target.NewRow();
+                    foreach (DataColumn column in target.Columns)
+                        newRow[column.ColumnName] = row.Table.Columns.Contains(column.ColumnName) ? row[column.ColumnName] : DBNull.Value;
+                    target.Rows.Add(newRow);
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorRow = target.NewRow();
+                errorRow["AUDIT_TIME"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                errorRow["AUDIT_TYPE"] = "FGA_SOURCE_ERROR";
+                errorRow["POLICY_NAME"] = "READ_FGA_LOG";
+                errorRow["STATUS"] = "FAILED";
+                errorRow["RETURN_CODE"] = -1;
+                errorRow["SQL_TEXT"] = ex.Message;
+                errorRow["SOURCE"] = sql.IndexOf("dba_fga_audit_trail", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "DBA_FGA_AUDIT_TRAIL"
+                    : "UNIFIED_AUDIT_TRAIL";
+                target.Rows.Add(errorRow);
+            }
+        }
+
+        private static DataTable CreateFgaAuditTable()
+        {
+            var table = new DataTable();
+            table.Columns.Add("AUDIT_TIME", typeof(string));
+            table.Columns.Add("DBUSERNAME", typeof(string));
+            table.Columns.Add("AUDIT_TYPE", typeof(string));
+            table.Columns.Add("POLICY_NAME", typeof(string));
+            table.Columns.Add("ACTION_NAME", typeof(string));
+            table.Columns.Add("OBJECT_NAME", typeof(string));
+            table.Columns.Add("STATUS", typeof(string));
+            table.Columns.Add("RETURN_CODE", typeof(decimal));
+            table.Columns.Add("SQL_TEXT", typeof(string));
+            table.Columns.Add("SOURCE", typeof(string));
+            return table;
         }
     }
 }

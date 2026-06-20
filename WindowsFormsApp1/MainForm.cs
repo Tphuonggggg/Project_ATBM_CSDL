@@ -86,7 +86,9 @@ namespace WindowsFormsApp1
         // Tab 7: Nhật ký kiểm toán
         private DataGridView _gridStandardAudit;
         private DataGridView _gridFgaAudit;
+        private ComboBox _cboAuditUserFilter;
         private Button _btnAuditRefresh;
+        private Button _btnAuditFilter;
 
         public MainForm(string connectionString)
         {
@@ -730,11 +732,33 @@ namespace WindowsFormsApp1
             _btnAuditRefresh.Click += async (s, e) => await RefreshAuditLogsAsync();
             top.Controls.Add(_btnAuditRefresh);
 
+            top.Controls.Add(new Label { Text = "User:", AutoSize = true, Padding = new Padding(12, 7, 0, 0) });
+            _cboAuditUserFilter = new ComboBox
+            {
+                Width = 150,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            _cboAuditUserFilter.Items.AddRange(new object[] { "Tất cả", "BS001", "BS002", "KTV01", "KTV02", "BN000001" });
+            _cboAuditUserFilter.SelectedIndex = 0;
+            top.Controls.Add(_cboAuditUserFilter);
+
+            _btnAuditFilter = new Button
+            {
+                Text = "Lọc",
+                Width = 80,
+                Height = 28,
+                BackColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold)
+            };
+            _btnAuditFilter.Click += async (s, e) => await RefreshAuditLogsAsync();
+            top.Controls.Add(_btnAuditFilter);
+
             var grids = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal, SplitterDistance = 320 };
             _gridStandardAudit = NewGrid();
             _gridFgaAudit = NewGrid();
-            grids.Panel1.Controls.Add(WrapGrid("① Kiểm toán chuẩn (Standard Audit) — dba_audit_trail (owner = CQ09)", _gridStandardAudit));
-            grids.Panel2.Controls.Add(WrapGrid("② Kiểm toán chi tiết (Fine-Grained Audit) — dba_fga_audit_trail (owner = CQ09)", _gridFgaAudit));
+            grids.Panel1.Controls.Add(WrapGrid("① Unified Audit — UNIFIED_AUDIT_TRAIL — UA_CQ09_*", _gridStandardAudit));
+            grids.Panel2.Controls.Add(WrapGrid("② FGA_CQ09_* từ UNIFIED_AUDIT_TRAIL hoặc DBA_FGA_AUDIT_TRAIL", _gridFgaAudit));
 
             root.Controls.Add(top, 0, 0);
             root.Controls.Add(grids, 0, 1);
@@ -748,10 +772,12 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var dtStandard = await _admin.GetStandardAuditLogsAsync();
+                var selectedUser = GetSelectedAuditUser();
+
+                var dtStandard = await _admin.GetStandardAuditLogsAsync(selectedUser);
                 _gridStandardAudit.DataSource = dtStandard;
 
-                var dtFga = await _admin.GetFgaAuditLogsAsync();
+                var dtFga = await _admin.GetFgaAuditLogsAsync(selectedUser);
                 _gridFgaAudit.DataSource = dtFga;
             }
             catch (Exception ex)
@@ -762,6 +788,12 @@ namespace WindowsFormsApp1
             {
                 SetBusy(false);
             }
+        }
+
+        private string GetSelectedAuditUser()
+        {
+            var selected = _cboAuditUserFilter?.SelectedItem?.ToString();
+            return string.Equals(selected, "Tất cả", StringComparison.OrdinalIgnoreCase) ? null : selected;
         }
 
         private static DataGridView NewGrid()

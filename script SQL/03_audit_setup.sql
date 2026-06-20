@@ -3,20 +3,28 @@
 -- PHAN HE 2 - YEU CAU 3: KIEM TOAN / AUDIT
 -- File: 03_audit_setup.sql
 --
+-- Oracle 21c Unified Auditing version.
+--
 -- Chay bang SYS AS SYSDBA tren PDB XEPDB1 sau khi da chay:
 --   StoredProcedures.sql, schema_data.sql, role.sql, RBAC.sql, VPD.sql
 --
 -- Muc tieu:
---   1. Kiem tra audit_trail.
---   2. Cau hinh Standard Audit cho table/view/procedure/function.
---   3. Cau hinh Fine-grained Audit cho cac cot nhay cam.
---   4. Cung cap cau truy van doc log audit.
+--   1. Tao Unified Audit Policy cho Table, View, Procedure, Function.
+--   2. Cau hinh chinh sach theo BY user cho cac user demo:
+--      BS001, BS002, KTV01, KTV02, BN000001.
+--   3. Audit rieng thao tac thanh cong va that bai.
+--   4. Giu Fine-Grained Audit (FGA) cho cac cot nghiep vu nhay cam.
+--
+-- Ghi chu Oracle 21c:
+--   - Unified audit records duoc doc tu UNIFIED_AUDIT_TRAIL.
+--   - Pure Unified Auditing: FGA records nam trong UNIFIED_AUDIT_TRAIL.
+--   - Mixed mode: FGA records nam trong DBA_FGA_AUDIT_TRAIL.
 -- =============================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
 
-PROMPT ===== 0. CHON PDB XEPDB1 VA KIEM TRA AUDIT_TRAIL =====
+PROMPT ===== 0. CHON PDB XEPDB1 VA KIEM TRA UNIFIED AUDITING =====
 
 BEGIN
     EXECUTE IMMEDIATE 'ALTER SESSION SET CONTAINER = XEPDB1';
@@ -27,25 +35,32 @@ EXCEPTION
 END;
 /
 
-SHOW PARAMETER audit_trail;
-
-PROMPT Neu audit_trail = NONE, chay lenh sau bang SYS AS SYSDBA roi restart Oracle:
-PROMPT ALTER SYSTEM SET audit_trail = DB, EXTENDED SCOPE = SPFILE;
+PROMPT Unified Auditing option:
+SELECT parameter, value
+FROM v$option
+WHERE parameter = 'Unified Auditing';
 
 PROMPT ===== 1. CAP QUYEN CAN THIET CHO CQ09 =====
 
+DECLARE
+    PROCEDURE grant_if_possible(p_sql VARCHAR2) IS
+    BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK: ' || p_sql);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Grant skipped: ' || p_sql || ' - ' || SQLERRM);
+    END;
 BEGIN
-    EXECUTE IMMEDIATE 'GRANT AUDIT SYSTEM TO CQ09';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON DBMS_FGA TO CQ09';
-    EXECUTE IMMEDIATE 'GRANT SELECT ANY DICTIONARY TO CQ09';
-    DBMS_OUTPUT.PUT_LINE('Granted audit/FGA helper privileges to CQ09.');
-EXCEPTION
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Grant skipped or already granted: ' || SQLERRM);
+    grant_if_possible('GRANT AUDIT SYSTEM TO CQ09');
+    grant_if_possible('GRANT AUDIT_ADMIN TO CQ09');
+    grant_if_possible('GRANT AUDIT_VIEWER TO CQ09');
+    grant_if_possible('GRANT EXECUTE ON DBMS_FGA TO CQ09');
+    grant_if_possible('GRANT SELECT ANY DICTIONARY TO CQ09');
 END;
 /
 
-PROMPT ===== 2. TAO PROCEDURE/FUNCTION DEMO DE STANDARD AUDIT EXECUTE =====
+PROMPT ===== 2. TAO PROCEDURE/FUNCTION DEMO DE AUDIT EXECUTE =====
 
 CREATE OR REPLACE PROCEDURE CQ09.P_AUDIT_DEMO_MARK(
     p_note IN VARCHAR2 DEFAULT NULL
@@ -63,77 +78,141 @@ BEGIN
 END;
 /
 
+DECLARE
+    PROCEDURE grant_if_possible(p_sql VARCHAR2) IS
+    BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK: ' || p_sql);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Grant skipped: ' || p_sql || ' - ' || SQLERRM);
+    END;
 BEGIN
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_DIEUPHOI';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_BACSI';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_KYTHUATVIEN';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_BENHNHAN';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_DIEUPHOI';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_BACSI';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_KYTHUATVIEN';
-    EXECUTE IMMEDIATE 'GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_BENHNHAN';
-    DBMS_OUTPUT.PUT_LINE('Granted execute on demo procedure/function to business roles.');
-EXCEPTION
-    WHEN OTHERS THEN
-        DBMS_OUTPUT.PUT_LINE('Demo execute grants skipped: ' || SQLERRM);
+    grant_if_possible('GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_DIEUPHOI');
+    grant_if_possible('GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_BACSI');
+    grant_if_possible('GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_KYTHUATVIEN');
+    grant_if_possible('GRANT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK TO RL_BENHNHAN');
+    grant_if_possible('GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_DIEUPHOI');
+    grant_if_possible('GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_BACSI');
+    grant_if_possible('GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_KYTHUATVIEN');
+    grant_if_possible('GRANT EXECUTE ON CQ09.F_AUDIT_DEMO_USER TO RL_BENHNHAN');
 END;
 /
 
-PROMPT ===== 3. DON STANDARD AUDIT CU DE SCRIPT CHAY LAI DUOC =====
+PROMPT ===== 3. DON UNIFIED AUDIT POLICY CU DE SCRIPT CHAY LAI DUOC =====
 
-NOAUDIT ALL ON CQ09.BENHNHAN;
-NOAUDIT ALL ON CQ09.HSBA;
-NOAUDIT ALL ON CQ09.DONTHUOC;
-NOAUDIT ALL ON CQ09.HSBA_DV;
-NOAUDIT ALL ON CQ09.VW_BENHNHAN;
-NOAUDIT ALL ON CQ09.VW_BACSI_HSBA;
-NOAUDIT ALL ON CQ09.VW_BACSI_DONTHUOC;
-NOAUDIT ALL ON CQ09.VW_KTV_HSBA_DV;
-NOAUDIT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK;
-NOAUDIT EXECUTE ON CQ09.F_AUDIT_DEMO_USER;
+DECLARE
+    c_users CONSTANT VARCHAR2(200) := 'BS001, BS002, KTV01, KTV02, BN000001';
 
-PROMPT ===== 4. STANDARD AUDIT CHO TABLE, VIEW, PROCEDURE, FUNCTION =====
+    PROCEDURE run_ddl(p_sql VARCHAR2) IS
+    BEGIN
+        EXECUTE IMMEDIATE p_sql;
+        DBMS_OUTPUT.PUT_LINE('OK: ' || p_sql);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Skip: ' || p_sql || ' - ' || SQLERRM);
+    END;
 
--- Table: ghi SELECT thanh cong tren BENHNHAN.
-AUDIT SELECT ON CQ09.BENHNHAN
-BY ACCESS
-WHENEVER SUCCESSFUL;
+    PROCEDURE drop_policy_if_exists(p_policy VARCHAR2) IS
+    BEGIN
+        run_ddl('NOAUDIT POLICY ' || p_policy || ' BY ' || c_users);
+        run_ddl('NOAUDIT POLICY ' || p_policy);
+        run_ddl('DROP AUDIT POLICY ' || p_policy);
+    END;
+BEGIN
+    drop_policy_if_exists('UA_CQ09_TABLE_SUCCESS');
+    drop_policy_if_exists('UA_CQ09_VIEW_SUCCESS');
+    drop_policy_if_exists('UA_CQ09_PROC_EXEC');
+    drop_policy_if_exists('UA_CQ09_FUNC_EXEC');
+    drop_policy_if_exists('UA_CQ09_FAILED_ATTEMPTS');
+END;
+/
 
--- Table: ghi UPDATE that bai tren cac bang nhay cam.
-AUDIT UPDATE ON CQ09.HSBA
-BY ACCESS
-WHENEVER NOT SUCCESSFUL;
+PROMPT ===== 4. TAO 5 UNIFIED AUDIT POLICY =====
 
-AUDIT UPDATE ON CQ09.DONTHUOC
-BY ACCESS
-WHENEVER NOT SUCCESSFUL;
+CREATE AUDIT POLICY UA_CQ09_TABLE_SUCCESS
+    ACTIONS
+        SELECT ON CQ09.BENHNHAN,
+        UPDATE ON CQ09.BENHNHAN,
+        SELECT ON CQ09.HSBA,
+        UPDATE ON CQ09.HSBA,
+        SELECT ON CQ09.DONTHUOC,
+        INSERT ON CQ09.DONTHUOC,
+        UPDATE ON CQ09.DONTHUOC,
+        DELETE ON CQ09.DONTHUOC,
+        SELECT ON CQ09.HSBA_DV,
+        INSERT ON CQ09.HSBA_DV,
+        UPDATE ON CQ09.HSBA_DV,
+        DELETE ON CQ09.HSBA_DV;
 
--- Table: ghi INSERT/UPDATE/DELETE that bai tren HSBA_DV.
-AUDIT INSERT, UPDATE, DELETE ON CQ09.HSBA_DV
-BY ACCESS
-WHENEVER NOT SUCCESSFUL;
+CREATE AUDIT POLICY UA_CQ09_VIEW_SUCCESS
+    ACTIONS
+        SELECT ON CQ09.VW_BENHNHAN,
+        UPDATE ON CQ09.VW_BENHNHAN,
+        SELECT ON CQ09.VW_BACSI_HSBA,
+        UPDATE ON CQ09.VW_BACSI_HSBA,
+        SELECT ON CQ09.VW_BACSI_DONTHUOC,
+        INSERT ON CQ09.VW_BACSI_DONTHUOC,
+        UPDATE ON CQ09.VW_BACSI_DONTHUOC,
+        DELETE ON CQ09.VW_BACSI_DONTHUOC,
+        SELECT ON CQ09.VW_KTV_HSBA_DV,
+        UPDATE ON CQ09.VW_KTV_HSBA_DV;
 
--- View: ghi thao tac qua cac view nghiep vu cua phan he 2.
-AUDIT SELECT, UPDATE ON CQ09.VW_BENHNHAN
-BY ACCESS;
+CREATE AUDIT POLICY UA_CQ09_PROC_EXEC
+    ACTIONS EXECUTE ON CQ09.P_AUDIT_DEMO_MARK;
 
-AUDIT SELECT, UPDATE ON CQ09.VW_BACSI_HSBA
-BY ACCESS;
+CREATE AUDIT POLICY UA_CQ09_FUNC_EXEC
+    ACTIONS EXECUTE ON CQ09.F_AUDIT_DEMO_USER;
 
-AUDIT SELECT, INSERT, UPDATE, DELETE ON CQ09.VW_BACSI_DONTHUOC
-BY ACCESS;
+CREATE AUDIT POLICY UA_CQ09_FAILED_ATTEMPTS
+    ACTIONS
+        SELECT ON CQ09.BENHNHAN,
+        UPDATE ON CQ09.BENHNHAN,
+        SELECT ON CQ09.HSBA,
+        UPDATE ON CQ09.HSBA,
+        DELETE ON CQ09.HSBA,
+        SELECT ON CQ09.DONTHUOC,
+        INSERT ON CQ09.DONTHUOC,
+        UPDATE ON CQ09.DONTHUOC,
+        DELETE ON CQ09.DONTHUOC,
+        SELECT ON CQ09.HSBA_DV,
+        INSERT ON CQ09.HSBA_DV,
+        UPDATE ON CQ09.HSBA_DV,
+        DELETE ON CQ09.HSBA_DV,
+        SELECT ON CQ09.VW_BENHNHAN,
+        UPDATE ON CQ09.VW_BENHNHAN,
+        SELECT ON CQ09.VW_BACSI_HSBA,
+        UPDATE ON CQ09.VW_BACSI_HSBA,
+        SELECT ON CQ09.VW_BACSI_DONTHUOC,
+        INSERT ON CQ09.VW_BACSI_DONTHUOC,
+        UPDATE ON CQ09.VW_BACSI_DONTHUOC,
+        DELETE ON CQ09.VW_BACSI_DONTHUOC,
+        SELECT ON CQ09.VW_KTV_HSBA_DV,
+        UPDATE ON CQ09.VW_KTV_HSBA_DV;
 
-AUDIT SELECT, UPDATE ON CQ09.VW_KTV_HSBA_DV
-BY ACCESS;
+PROMPT ===== 5. BAT POLICY THEO BY USER VA THANH CONG/THAT BAI =====
 
--- Procedure/function: ghi EXECUTE tren doi tuong demo.
-AUDIT EXECUTE ON CQ09.P_AUDIT_DEMO_MARK
-BY ACCESS;
+AUDIT POLICY UA_CQ09_TABLE_SUCCESS
+    BY BS001, BS002, KTV01, KTV02, BN000001
+    WHENEVER SUCCESSFUL;
 
-AUDIT EXECUTE ON CQ09.F_AUDIT_DEMO_USER
-BY ACCESS;
+AUDIT POLICY UA_CQ09_VIEW_SUCCESS
+    BY BS001, BS002, KTV01, KTV02, BN000001
+    WHENEVER SUCCESSFUL;
 
-PROMPT ===== 5. DON FGA POLICY CU =====
+AUDIT POLICY UA_CQ09_PROC_EXEC
+    BY BS001, BS002, KTV01, KTV02, BN000001
+    WHENEVER SUCCESSFUL;
+
+AUDIT POLICY UA_CQ09_FUNC_EXEC
+    BY BS001, BS002, KTV01, KTV02, BN000001
+    WHENEVER SUCCESSFUL;
+
+AUDIT POLICY UA_CQ09_FAILED_ATTEMPTS
+    BY BS001, BS002, KTV01, KTV02, BN000001
+    WHENEVER NOT SUCCESSFUL;
+
+PROMPT ===== 6. DON FGA POLICY CU =====
 
 DECLARE
     PROCEDURE drop_fga_if_exists(p_object VARCHAR2, p_policy VARCHAR2) IS
@@ -154,7 +233,13 @@ BEGIN
 END;
 /
 
-PROMPT ===== 6. FINE-GRAINED AUDIT CHO CAC COT NHAY CAM =====
+PROMPT ===== 7. FINE-GRAINED AUDIT CHO CAC COT NHAY CAM =====
+
+-- Oracle 21c audit mode note:
+--   - Pure Unified Auditing: FGA records nam trong UNIFIED_AUDIT_TRAIL
+--     voi AUDIT_TYPE = 'FineGrainedAudit' va FGA_POLICY_NAME.
+--   - Mixed mode (v$option 'Unified Auditing' = FALSE): FGA records nam trong
+--     DBA_FGA_AUDIT_TRAIL. DBMS_FGA.DB + DBMS_FGA.EXTENDED giup ghi SQL_TEXT.
 
 BEGIN
     DBMS_FGA.ADD_POLICY(
@@ -186,45 +271,33 @@ BEGIN
 END;
 /
 
-PROMPT ===== 7. KIEM TRA CAU HINH AUDIT/FGA =====
+PROMPT ===== 8. KIEM TRA CAU HINH UNIFIED AUDIT/FGA =====
 
+PROMPT Demo procedure/function:
 SELECT owner, object_name, object_type, status
 FROM dba_objects
 WHERE owner = 'CQ09'
   AND object_name IN ('P_AUDIT_DEMO_MARK', 'F_AUDIT_DEMO_USER')
 ORDER BY object_name;
 
-PROMPT Standard object audit options:
-SELECT owner, object_name, object_type, sel, ins, upd, del, exe
-FROM dba_obj_audit_opts
-WHERE owner = 'CQ09'
-ORDER BY object_name;
+PROMPT Unified audit policies:
+SELECT policy_name, audit_option, object_schema, object_name, object_type
+FROM audit_unified_policies
+WHERE policy_name LIKE 'UA_CQ09_%'
+ORDER BY policy_name, object_schema, object_name, audit_option;
+
+PROMPT Enabled unified audit policies:
+SELECT policy_name, enabled_option, entity_name, success, failure
+FROM audit_unified_enabled_policies
+WHERE policy_name LIKE 'UA_CQ09_%'
+ORDER BY policy_name, entity_name;
 
 PROMPT FGA policies:
 SELECT object_schema, object_name, policy_name, policy_text, enabled,
        policy_column, policy_column_options
 FROM dba_audit_policies
 WHERE object_schema = 'CQ09'
+  AND policy_name LIKE 'FGA_CQ09_%'
 ORDER BY object_name, policy_name;
 
-PROMPT ===== 8. CAU TRUY VAN DOC LOG SAU KHI TEST =====
-
-PROMPT Standard audit:
-SELECT username, action_name, owner, obj_name,
-       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
-       returncode
-FROM dba_audit_trail
-WHERE owner = 'CQ09'
-ORDER BY timestamp DESC
-FETCH FIRST 20 ROWS ONLY;
-
-PROMPT Fine-grained audit:
-SELECT db_user, object_schema, object_name, policy_name,
-       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
-       sql_text
-FROM dba_fga_audit_trail
-WHERE object_schema = 'CQ09'
-ORDER BY timestamp DESC
-FETCH FIRST 20 ROWS ONLY;
-
-PROMPT ===== HOAN TAT YEU CAU 3: AUDIT SETUP =====
+PROMPT ===== HOAN TAT YEU CAU 3: UNIFIED AUDIT SETUP =====
