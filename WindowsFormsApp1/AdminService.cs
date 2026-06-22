@@ -1,5 +1,7 @@
 using System;
 using System.Data;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace WindowsFormsApp1
@@ -457,6 +459,211 @@ order by owner, object_name, priv_level, column_name, privilege";
             table.Columns.Add("SQL_TEXT", typeof(string));
             table.Columns.Add("SOURCE", typeof(string));
             return table;
+        }
+
+        // ===== RECOVERY / FLASHBACK =====
+        public async Task<DataTable> GetDonThuocRecoveryAuditAsync()
+        {
+            var unifiedSql = @"
+                select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       dbusername as db_user,
+                       'UNIFIED_AUDIT_TRAIL' as source,
+                       replace(replace(dbms_lob.substr(sql_text, 1000, 1), chr(10), ' '), chr(13), ' ') as sql_text
+                from unified_audit_trail
+                where audit_type = 'FineGrainedAudit'
+                  and object_schema = 'CQ09'
+                  and object_name = 'DONTHUOC'
+                  and fga_policy_name = 'FGA_CQ09_DONTHUOC_UPDATE'
+                order by event_timestamp desc
+                fetch first 50 rows only";
+
+            var legacySql = @"
+                select to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       db_user,
+                       'DBA_FGA_AUDIT_TRAIL' as source,
+                       to_char(substr(sql_text, 1, 1000)) as sql_text
+                from dba_fga_audit_trail
+                where object_schema = 'CQ09'
+                  and object_name = 'DONTHUOC'
+                  and policy_name = 'FGA_CQ09_DONTHUOC_UPDATE'
+                order by timestamp desc
+                fetch first 50 rows only";
+
+            var result = CreateRecoveryAuditTable();
+            await MergeRecoveryAuditRowsAsync(result, unifiedSql);
+            await MergeRecoveryAuditRowsAsync(result, legacySql);
+
+            var view = result.DefaultView;
+            view.Sort = "AUDIT_TIME DESC, SOURCE ASC";
+            return view.ToTable();
+        }
+
+        private async Task MergeRecoveryAuditRowsAsync(DataTable target, string sql)
+        {
+            try
+            {
+                var source = await OracleHelper.QueryAsync(_connectionString, sql);
+                foreach (DataRow row in source.Rows)
+                {
+                    var auditTime = row["AUDIT_TIME"]?.ToString() ?? "";
+                    var sqlText = row["SQL_TEXT"]?.ToString() ?? "";
+                    var parsed = ParseDonThuocKeyFromSql(sqlText);
+
+                    var newRow = target.NewRow();
+                    newRow["AUDIT_TIME"] = auditTime;
+                    newRow["DB_USER"] = row["DB_USER"]?.ToString() ?? "";
+                    newRow["SOURCE"] = row["SOURCE"]?.ToString() ?? "";
+                    newRow["SUGGESTED_RESTORE_TS"] = BuildSuggestedRestoreTs(auditTime);
+                    newRow["MAHSBA"] = parsed.Mahsba;
+                    newRow["NGAYDT"] = parsed.Ngaydt;
+                    newRow["TENTHUOC"] = parsed.Tenthuoc;
+                    newRow["SQL_TEXT"] = sqlText;
+                    target.Rows.Add(newRow);
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorRow = target.NewRow();
+                errorRow["AUDIT_TIME"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                errorRow["DB_USER"] = "";
+                errorRow["SOURCE"] = sql.IndexOf("dba_fga_audit_trail", StringComparison.OrdinalIgnoreCase) >= 0
+                    ? "DBA_FGA_AUDIT_TRAIL_ERROR"
+                    : "UNIFIED_AUDIT_TRAIL_ERROR";
+                errorRow["SUGGESTED_RESTORE_TS"] = "";
+                errorRow["MAHSBA"] = "";
+                errorRow["NGAYDT"] = "";
+                errorRow["TENTHUOC"] = "";
+                errorRow["SQL_TEXT"] = ex.Message;
+                target.Rows.Add(errorRow);
+            }
+        }
+
+        private static DataTable CreateRecoveryAuditTable()
+        {
+            var table = new DataTable();
+            table.Columns.Add("AUDIT_TIME", typeof(string));
+            table.Columns.Add("DB_USER", typeof(string));
+            table.Columns.Add("SOURCE", typeof(string));
+            table.Columns.Add("SUGGESTED_RESTORE_TS", typeof(string));
+            table.Columns.Add("MAHSBA", typeof(string));
+            table.Columns.Add("NGAYDT", typeof(string));
+            table.Columns.Add("TENTHUOC", typeof(string));
+            table.Columns.Add("SQL_TEXT", typeof(string));
+            return table;
+        }
+
+        private static string BuildSuggestedRestoreTs(string auditTime)
+        {
+            DateTime parsed;
+            if (!DateTime.TryParseExact(auditTime, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsed))
+                return "";
+            return parsed.AddSeconds(-10).ToString("yyyy-MM-dd HH:mm:ss");
+        }
+
+        private static (string Mahsba, string Ngaydt, string Tenthuoc) ParseDonThuocKeyFromSql(string sqlText)
+        {
+            var mahsba = MatchSqlValue(sqlText, @"MAHSBA\s*=\s*'([^']*)'");
+            var tenthuoc = MatchSqlValue(sqlText, @"TENTHUOC\s*=\s*N?'([^']*)'");
+            var ngaydt = MatchSqlValue(sqlText, @"NGAYDT\s*=\s*TO_DATE\('([^']*)'\s*,\s*'DD/MM/YYYY'\)");
+            if (!string.IsNullOrWhiteSpace(ngaydt))
+            {
+                DateTime parsedDate;
+                if (DateTime.TryParseExact(ngaydt, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedDate))
+                    ngaydt = parsedDate.ToString("yyyy-MM-dd");
+            }
+            else
+            {
+                ngaydt = MatchSqlValue(sqlText, @"NGAYDT\s*=\s*DATE\s*'([^']*)'");
+            }
+            return (mahsba, ngaydt, tenthuoc);
+        }
+
+        private static string MatchSqlValue(string text, string pattern)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return "";
+            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase);
+            return match.Success ? match.Groups[1].Value.Replace("''", "'") : "";
+        }
+
+        public Task<DataTable> GetCurrentDonThuocAsync(string maHsba, string ngayDt, string tenThuoc)
+        {
+            ValidateDonThuocKey(maHsba, ngayDt, tenThuoc);
+            var sql = $@"
+                select mahsba,
+                       to_char(ngaydt, 'YYYY-MM-DD') as ngaydt,
+                       tenthuoc,
+                       lieudung
+                from CQ09.DONTHUOC
+                where mahsba = {OracleHelper.QuoteLiteral(maHsba.Trim())}
+                  and ngaydt = date {OracleHelper.QuoteLiteral(ngayDt.Trim())}
+                  and tenthuoc = N{OracleHelper.QuoteLiteral(tenThuoc.Trim())}";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public Task<DataTable> GetFlashbackDonThuocAsync(string maHsba, string ngayDt, string tenThuoc, string restoreTs)
+        {
+            ValidateDonThuocKey(maHsba, ngayDt, tenThuoc);
+            ValidateRestoreTs(restoreTs);
+            var sql = $@"
+                select mahsba,
+                       to_char(ngaydt, 'YYYY-MM-DD') as ngaydt,
+                       tenthuoc,
+                       lieudung
+                from CQ09.DONTHUOC as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS')
+                where mahsba = {OracleHelper.QuoteLiteral(maHsba.Trim())}
+                  and ngaydt = date {OracleHelper.QuoteLiteral(ngayDt.Trim())}
+                  and tenthuoc = N{OracleHelper.QuoteLiteral(tenThuoc.Trim())}";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public async Task<int> FlashRestoreDonThuocAsync(string maHsba, string ngayDt, string tenThuoc, string restoreTs)
+        {
+            ValidateDonThuocKey(maHsba, ngayDt, tenThuoc);
+            ValidateRestoreTs(restoreTs);
+            var sql = $@"
+                update CQ09.DONTHUOC d
+                set d.LIEUDUNG = (
+                    select old.LIEUDUNG
+                    from CQ09.DONTHUOC as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS') old
+                    where old.MAHSBA = d.MAHSBA
+                      and old.NGAYDT = d.NGAYDT
+                      and old.TENTHUOC = d.TENTHUOC
+                )
+                where d.MAHSBA = {OracleHelper.QuoteLiteral(maHsba.Trim())}
+                  and d.NGAYDT = date {OracleHelper.QuoteLiteral(ngayDt.Trim())}
+                  and d.TENTHUOC = N{OracleHelper.QuoteLiteral(tenThuoc.Trim())}
+                  and exists (
+                      select 1
+                      from CQ09.DONTHUOC as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS') old
+                      where old.MAHSBA = d.MAHSBA
+                        and old.NGAYDT = d.NGAYDT
+                        and old.TENTHUOC = d.TENTHUOC
+                  )";
+            var rows = await OracleHelper.ExecuteNonQueryAsync(_connectionString, sql);
+            await OracleHelper.ExecuteNonQueryAsync(_connectionString, "commit");
+            return rows;
+        }
+
+        private static void ValidateDonThuocKey(string maHsba, string ngayDt, string tenThuoc)
+        {
+            if (string.IsNullOrWhiteSpace(maHsba))
+                throw new InvalidOperationException("MAHSBA khong duoc de trong.");
+            if (string.IsNullOrWhiteSpace(ngayDt))
+                throw new InvalidOperationException("Ngay don thuoc khong duoc de trong.");
+            if (string.IsNullOrWhiteSpace(tenThuoc))
+                throw new InvalidOperationException("Ten thuoc khong duoc de trong.");
+            DateTime parsed;
+            if (!DateTime.TryParseExact(ngayDt.Trim(), "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out parsed))
+                throw new InvalidOperationException("Ngay don thuoc phai co dang YYYY-MM-DD.");
+        }
+
+        private static void ValidateRestoreTs(string restoreTs)
+        {
+            if (string.IsNullOrWhiteSpace(restoreTs))
+                throw new InvalidOperationException("Restore timestamp khong duoc de trong.");
+            DateTime parsed;
+            if (!DateTime.TryParseExact(restoreTs.Trim(), "yyyy-MM-dd HH:mm:ss", null, System.Globalization.DateTimeStyles.None, out parsed))
+                throw new InvalidOperationException("Restore timestamp phai co dang YYYY-MM-DD HH24:MI:SS.");
         }
     }
 }

@@ -90,6 +90,11 @@ namespace WindowsFormsApp1
         private Button _btnAuditRefresh;
         private Button _btnAuditFilter;
 
+        // Tab 8: Recovery
+        private Button _btnRecoveryLoadAudit;
+        private Button _btnRecoveryApply;
+        private DataGridView _gridRecoveryAudit;
+
         public MainForm(string connectionString)
         {
             InitializeComponent();
@@ -168,6 +173,7 @@ namespace WindowsFormsApp1
             _tabs.TabPages.Add(BuildTabViewPrivileges());
             _tabs.TabPages.Add(BuildTabObjectBrowser());
             _tabs.TabPages.Add(BuildTabAuditLogs());
+            _tabs.TabPages.Add(BuildTabRecovery());
 
             _tabs.SelectedIndexChanged += async (s, e) =>
             {
@@ -175,6 +181,10 @@ namespace WindowsFormsApp1
                 if (_tabs.SelectedTab != null && _tabs.SelectedTab.Text.Contains("kiểm toán"))
                 {
                     await RefreshAuditLogsAsync();
+                }
+                else if (_tabs.SelectedTab != null && _tabs.SelectedTab.Text.Contains("Recovery"))
+                {
+                    await RefreshRecoveryAuditAsync();
                 }
             };
         }
@@ -767,6 +777,46 @@ namespace WindowsFormsApp1
             return tab;
         }
 
+        private TabPage BuildTabRecovery()
+        {
+            var tab = new TabPage("8. Recovery") { Padding = new Padding(12), BackColor = Color.White };
+
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            var top = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Padding = new Padding(4) };
+            _btnRecoveryLoadAudit = SecondaryButton("Tai audit");
+            _btnRecoveryLoadAudit.Width = 140;
+            _btnRecoveryLoadAudit.Dock = DockStyle.None;
+            _btnRecoveryLoadAudit.Click += async (s, e) => await RefreshRecoveryAuditAsync();
+
+            _btnRecoveryApply = PrimaryButton("Restore audit da chon");
+            _btnRecoveryApply.Width = 190;
+            _btnRecoveryApply.Dock = DockStyle.None;
+            _btnRecoveryApply.Click += async (s, e) => await ApplyFlashRestoreAsync();
+
+            top.Controls.Add(_btnRecoveryLoadAudit);
+            top.Controls.Add(_btnRecoveryApply);
+            top.Controls.Add(new Label
+            {
+                Text = "Chon dong audit update DONTHUOC, bam Restore audit da chon. App tu lay khoa dong va moc restore tu audit.",
+                AutoSize = true,
+                Padding = new Padding(12, 8, 0, 0),
+                ForeColor = Color.FromArgb(90, 95, 105)
+            });
+
+            _gridRecoveryAudit = NewGrid();
+
+            root.Controls.Add(top, 0, 0);
+            root.Controls.Add(WrapGrid("Audit FGA DONTHUOC tu UNIFIED_AUDIT_TRAIL va DBA_FGA_AUDIT_TRAIL", _gridRecoveryAudit), 0, 1);
+            tab.Controls.Add(root);
+
+            _tips.SetToolTip(_btnRecoveryApply, "App se lay MAHSBA, NGAYDT, TENTHUOC va suggested_restore_ts tu dong audit dang chon.");
+
+            return tab;
+        }
+
         private async Task RefreshAuditLogsAsync()
         {
             SetBusy(true);
@@ -788,6 +838,93 @@ namespace WindowsFormsApp1
             {
                 SetBusy(false);
             }
+        }
+
+        private async Task RefreshRecoveryAuditAsync()
+        {
+            if (_gridRecoveryAudit == null) return;
+            SetBusy(true);
+            try
+            {
+                _gridRecoveryAudit.DataSource = await _admin.GetDonThuocRecoveryAuditAsync();
+                SetStatus("Da tai audit FGA DONTHUOC cho Recovery.");
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private async Task ApplyFlashRestoreAsync()
+        {
+            if (!(_gridRecoveryAudit?.CurrentRow?.DataBoundItem is DataRowView rv))
+            {
+                MessageBox.Show(this, "Hay chon mot dong audit truoc.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var input = (
+                Mahsba: GetRecoveryAuditCell(rv, "MAHSBA"),
+                Ngaydt: GetRecoveryAuditCell(rv, "NGAYDT"),
+                Tenthuoc: GetRecoveryAuditCell(rv, "TENTHUOC"),
+                RestoreTs: GetRecoveryAuditCell(rv, "SUGGESTED_RESTORE_TS")
+            );
+
+            if (string.IsNullOrWhiteSpace(input.Mahsba) ||
+                string.IsNullOrWhiteSpace(input.Ngaydt) ||
+                string.IsNullOrWhiteSpace(input.Tenthuoc) ||
+                string.IsNullOrWhiteSpace(input.RestoreTs))
+            {
+                MessageBox.Show(
+                    this,
+                    "Dong audit nay khong parse duoc du khoa MAHSBA/NGAYDT/TENTHUOC/Restore TS.\nHay chon dong update DONTHUOC duoc tao tu app bac si.",
+                    "NHOM 09",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            SetBusy(true);
+            try
+            {
+                var current = await _admin.GetCurrentDonThuocAsync(input.Mahsba, input.Ngaydt, input.Tenthuoc);
+                var flashback = await _admin.GetFlashbackDonThuocAsync(input.Mahsba, input.Ngaydt, input.Tenthuoc, input.RestoreTs);
+
+                var currentDose = current.Rows.Count > 0 ? current.Rows[0]["LIEUDUNG"]?.ToString() : "(khong thay dong hien tai)";
+                var oldDose = flashback.Rows.Count > 0 ? flashback.Rows[0]["LIEUDUNG"]?.ToString() : "(khong thay du lieu flashback)";
+
+                var confirm = MessageBox.Show(
+                    this,
+                    $"Restore dong:\nMAHSBA: {input.Mahsba}\nNGAYDT: {input.Ngaydt}\nThuoc: {input.Tenthuoc}\nRestore TS: {input.RestoreTs}\n\nHien tai:\n{currentDose}\n\nGia tri se khoi phuc:\n{oldDose}",
+                    "NHOM 09 - Xac nhan Flash Restore",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (confirm != DialogResult.Yes) return;
+
+                var rows = await _admin.FlashRestoreDonThuocAsync(input.Mahsba, input.Ngaydt, input.Tenthuoc, input.RestoreTs);
+                await RefreshRecoveryAuditAsync();
+                SetStatus($"Flash Restore hoan tat. So dong cap nhat: {rows}.");
+                MessageBox.Show(this, $"Flash Restore hoan tat. So dong cap nhat: {rows}.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private static string GetRecoveryAuditCell(DataRowView rv, string column)
+        {
+            if (rv == null || !rv.Row.Table.Columns.Contains(column)) return "";
+            return rv.Row[column]?.ToString()?.Trim() ?? "";
         }
 
         private string GetSelectedAuditUser()
