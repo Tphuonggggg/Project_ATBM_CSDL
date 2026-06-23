@@ -5,6 +5,27 @@ Tài liệu này giúp bạn lập tức biết cách cài đặt Cơ sở dữ 
 
 ---
 
+## ✅ PHẦN 0: YÊU CẦU MÔI TRƯỜNG
+
+Trước khi chạy demo, cần chuẩn bị:
+
+| Thành phần | Yêu cầu |
+| :--- | :--- |
+| Hệ điều hành | Windows |
+| IDE/build tool | Visual Studio 2022 có workload **.NET desktop development** hoặc MSBuild của Visual Studio |
+| .NET | **.NET Framework 4.8 Developer Pack/Targeting Pack** |
+| Database | Oracle Database có PDB tên **`XEPDB1`** và listener chạy cổng `1521` |
+| Công cụ SQL | SQL Developer hoặc SQL*Plus |
+| NuGet package | `Oracle.ManagedDataAccess 19.19.0` trong thư mục `packages/` |
+
+> [!NOTE]
+> Các script SQL đang dùng `ALTER SESSION SET CONTAINER = XEPDB1;`. Nếu máy bạn dùng PDB khác, hãy đổi `XEPDB1` trong các script và trong màn hình đăng nhập ứng dụng cho thống nhất.
+
+> [!WARNING]
+> Phần OLS cần Oracle có Oracle Label Security/`LBACSYS`. Nếu database chưa hỗ trợ hoặc chưa bật OLS, script `06_OLS_setup.sql` có thể lỗi và phần demo OLS sẽ không chạy đúng.
+
+---
+
 ## ⚡ PHẦN 1: HƯỚNG DẪN CHẠY SCRIPT SQL (ORACLE)
 
 > [!IMPORTANT]
@@ -37,6 +58,24 @@ Hãy chạy các file trong thư mục `script SQL/` theo đúng thứ tự và 
 3. Nhấn **F5** hoặc chọn **Build -> Build Solution** để biên dịch.
 4. File chạy `.exe` sau khi biên dịch thành công sẽ nằm ở: `WindowsFormsApp1/bin/Debug/NHOM09.exe`.
 
+Nếu muốn build bằng dòng lệnh, mở **Developer PowerShell for Visual Studio** tại thư mục gốc project và chạy:
+
+```powershell
+msbuild .\WindowsFormsApp1\WindowsFormsApp1.csproj /p:Configuration=Debug /p:Platform=AnyCPU
+```
+
+Hoặc dùng MSBuild theo đường dẫn cài Visual Studio:
+
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" .\WindowsFormsApp1\WindowsFormsApp1.csproj /p:Configuration=Debug /p:Platform=AnyCPU
+```
+
+Chạy ứng dụng sau khi build:
+
+```powershell
+.\WindowsFormsApp1\bin\Debug\NHOM09.exe
+```
+
 ### 2. Đăng nhập ứng dụng
 Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 * **Host**: `localhost` (hoặc IP máy chủ Oracle)
@@ -44,6 +83,18 @@ Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 * **Service/PDB**: `XEPDB1` (PDB chứa schema dự án)
 * **User & Password**: Nhập theo bảng tài khoản demo bên dưới.
 * **SYSDBA**: **Không tích chọn** ô này khi đăng nhập bằng tài khoản quản trị dự án **`CQ09`** hoặc các user nghiệp vụ. Chỉ tích chọn khi đăng nhập bằng tài khoản **`SYS`** (khi thật sự cần thiết).
+
+> [!TIP]
+> Màn hình đăng nhập mặc định điền `sys` và tích `SYSDBA` để tiện cấu hình ban đầu. Khi demo nghiệp vụ, hãy đổi sang `CQ09`, `NV001`, `BS001`, `KTV01`, `BN000001` hoặc `u1` - `u8` và bỏ chọn `SYSDBA`.
+
+### 3. Chế độ xem trước không cần Oracle
+Ứng dụng có tài khoản bypass để mở giao diện nhanh khi chưa kết nối Oracle:
+
+| User | Password | Ghi chú |
+| :--- | :--- | :--- |
+| `demo` | `demo` | Chỉ mở giao diện preview. Các chức năng truy vấn/grant/revoke sẽ báo lỗi vì không có database thật. |
+
+Chế độ này chỉ dùng để kiểm tra giao diện hoặc quay nhanh màn hình mở app, **không thay thế demo chức năng bảo mật**.
 
 ---
 
