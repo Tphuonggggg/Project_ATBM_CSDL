@@ -30,7 +30,7 @@ Thư mục này chứa kịch bản backup, restore, tạo sự cố, đọc aud
 @"script SQL/02_schema_data.sql"
 @"script SQL/03_role.sql"
 @"script SQL/04_VPD.sql"
-@"script SQL/06_audit_setup.sql"
+@"script SQL/07_audit_setup.sql"
 ```
 
 Audit nên được bật:
