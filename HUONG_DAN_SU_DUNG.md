@@ -7,33 +7,26 @@ Tài liệu này giúp bạn lập tức biết cách cài đặt Cơ sở dữ 
 
 ## ⚡ PHẦN 1: HƯỚNG DẪN CHẠY SCRIPT SQL (ORACLE)
 
-Bạn có hai cách để thiết lập Cơ sở dữ liệu: chạy tự động toàn bộ (Khuyến nghị) hoặc chạy thủ công từng bước.
-
-### Cách 1: Thiết lập tự động toàn bộ 
-
 > [!IMPORTANT]
-> **HƯỚNG DẪN CHẠY BẰNG SQL DEVELOPER**
-> 1. Mở phần mềm SQL Developer.
-> 2. Chọn **File -> Open**, tìm đến thư mục dự án và chọn mở trực tiếp file **`script SQL/00_run_all.sql`**. *(Không được copy-paste nội dung vào Worksheet trắng để tránh lỗi đường dẫn relative)*.
-> 3. Chọn kết nối bằng tài khoản quản trị hệ thống **`SYS`** với vai trò **`SYSDBA`**.
-> 4. Nhấn phím **`F5`** (hoặc nút **Run Script** hình tờ giấy có nút Play xanh lá).
-> 
-> Hệ thống sẽ tự động khởi tạo User quản trị `CQ09`, nạp toàn bộ cấu trúc bảng, dữ liệu mẫu, thiết lập phân quyền RBAC, VPD, OLS và cấu hình Audit.
----
+> **PHÂN ĐỊNH VAI TRÒ QUẢN TRỊ TRONG DỰ ÁN**
+> - **`CQ09`**: Là tài khoản **Quản trị viên trực tiếp của dự án** (Project DBA / Schema Owner). Toàn bộ cấu trúc cơ sở dữ liệu y tế, phân quyền nghiệp vụ (RBAC, VPD, dữ liệu mẫu, view, procedure...) đều được tạo dưới schema và quản lý bởi tài khoản `CQ09`. Đây là tài khoản dùng để đăng nhập và vận hành chính.
+> - **`SYS`**: Là tài khoản **Quản trị hệ thống Oracle (System DBA)**. Tài khoản này **không can thiệp sâu** vào dữ liệu nghiệp vụ của dự án, mà chỉ được sử dụng cho các cấu hình cấp hệ thống/database ban đầu (kích hoạt OLS, thiết lập tham số Audit, tạo user `CQ09` và cấp quyền DBA cho `CQ09`).
 
-### Cách 2: Thiết lập thủ công từng bước (Nếu muốn kiểm tra từng phần)
+### Hướng dẫn thiết lập Cơ sở dữ liệu (Chạy thủ công từng bước)
+> **HƯỚNG DẪN CHẠY TRÊN SQL DEVELOPER**
 
-Đăng nhập bằng tài khoản **`SYS AS SYSDBA`** và chạy các file trong thư mục `script SQL/` theo đúng thứ tự sau:
+Hãy chạy các file trong thư mục `script SQL/` theo đúng thứ tự và sử dụng đúng tài khoản kết nối sau:
 
-| Thứ tự | File chạy | Tài khoản chạy | Chức năng chi tiết |
+| Thứ tự | File chạy | Tài khoản kết nối | Chức năng chi tiết |
 | :---: | :--- | :---: | :--- |
-| **1** | `01_StoredProcedures.sql` | `SYS AS SYSDBA` | Khởi tạo schema `CQ09`, cấp các quyền Admin và tạo các thủ tục (Stored Procedure) quản trị user/role/grant. |
-| **2** | `02_schema_data.sql` | `SYS` hoặc `CQ09` | Tạo các bảng (`NHANVIEN`, `BENHNHAN`, `HSBA`, `HSBA_DV`, `DONTHUOC`, `THONGBAO`), tạo index và nạp dữ liệu mẫu. |
-| **3** | `03_role.sql` | `SYS` hoặc `CQ09` | Khởi tạo các vai trò (`RL_DIEUPHOI`, `RL_BACSI`,...) và tự động tạo tài khoản database tương ứng cho từng nhân viên/bệnh nhân. |
-| **4** | `04_RBAC.sql` | `SYS` hoặc `CQ09` | Tạo các view bảo mật cơ bản (`vw_benhnhan`, `vw_nhanvien_canhan`,...) và cấp quyền SELECT, UPDATE có giới hạn cột cho các Role (RBAC truyền thống). |
-| **5** | `05_VPD.sql` | `SYS` hoặc `CQ09` | Áp dụng chính sách kiểm soát truy cập mức dòng/cột nâng cao bằng VPD (Virtual Private Database) lên các bảng gốc để chống bypass. |
-| **6** | `06_OLS_setup.sql` | `SYS AS SYSDBA` | Cấu hình Oracle Label Security trên bảng `THONGBAO` phục vụ phát tán thông tin khẩn cấp theo nhãn (Level, Compartment, Group) cho user `u1` - `u8`. |
-| **7** | `07_audit_setup.sql` | `SYS AS SYSDBA` | Cấu hình Standard Audit và Fine-Grained Audit (FGA) để ghi lại nhật ký khi có các thao tác nhạy cảm trên dữ liệu y tế. |
+| **1** | `01_StoredProcedures.sql` | **`SYS AS SYSDBA`** | Khởi tạo schema `CQ09`, cấp các quyền Admin và tạo các thủ tục (Stored Procedure) quản trị user/role/grant. |
+| **2** | `02_schema_data.sql` | **`CQ09`** | Tạo các bảng nghiệp vụ (`NHANVIEN`, `BENHNHAN`, `HSBA`, `HSBA_DV`, `DONTHUOC`, `THONGBAO`), tạo index và nạp dữ liệu mẫu lớn. |
+| **3** | `03_role.sql` | **`CQ09`** | Khởi tạo các vai trò (`RL_DIEUPHOI`, `RL_BACSI`,...) và tự động tạo tài khoản database tương ứng cho từng nhân viên/bệnh nhân. |
+| **4** | `04_RBAC.sql` | **`CQ09`** | Tạo các view bảo mật cơ bản (`vw_benhnhan`, `vw_nhanvien_canhan`,...) và cấp quyền SELECT, UPDATE có giới hạn cột cho các Role (RBAC truyền thống). |
+| **5** | `05_VPD.sql` | **`CQ09`** | Áp dụng chính sách kiểm soát truy cập mức dòng/cột nâng cao bằng VPD (Virtual Private Database) lên các bảng gốc để chống bypass. |
+| **6** | `06_OLS_setup.sql` | **`SYS AS SYSDBA`** | Cấu hình Oracle Label Security trên bảng `THONGBAO` phục vụ phát tán thông tin khẩn cấp theo nhãn (Level, Compartment, Group) cho user `u1` - `u8`. |
+| **7** | `07_audit_setup.sql` | **`SYS AS SYSDBA`** | Cấu hình Standard Audit và Fine-Grained Audit (FGA) hệ thống để ghi lại nhật ký khi có các thao tác nhạy cảm trên dữ liệu y tế. |
+
 ---
 
 ## 💻 PHẦN 2: HƯỚNG DẪN CHẠY ỨNG DỤNG WINFORMS
@@ -50,7 +43,8 @@ Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 * **Port**: `1521` (mặc định của Oracle)
 * **Service/PDB**: `XEPDB1` (PDB chứa schema dự án)
 * **User & Password**: Nhập theo bảng tài khoản demo bên dưới.
-* **SYSDBA**: Chỉ tích chọn ô này khi đăng nhập bằng tài khoản quản trị `SYS`.
+* **SYSDBA**: **Không tích chọn** ô này khi đăng nhập bằng tài khoản quản trị dự án **`CQ09`** hoặc các user nghiệp vụ. Chỉ tích chọn khi đăng nhập bằng tài khoản **`SYS`** (khi thật sự cần thiết).
+
 ---
 
 ## 🔑 PHẦN 3: DANH SÁCH TÀI KHOẢN DEMO & GIAO DIỆN TƯƠNG ỨNG
@@ -59,7 +53,8 @@ Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 
 | Tài khoản | Mật khẩu | Vai trò hệ thống | Màn hình hiển thị | Tính năng chính cần demo |
 | :--- | :---: | :---: | :--- | :--- |
-| **`SYS`** | *(Theo máy)* | **DBA / Admin** | `MainForm` | Quản trị viên: tạo/khóa/xóa User, Role, Cấp/Thu hồi quyền hệ thống, xem bảng quyền và duyệt cấu trúc database. |
+| **`CQ09`** | `ATBM123` | **Project DBA (Quản trị chính)** | `MainForm` | Quản trị dự án: tạo/khóa/xóa User nghiệp vụ, tạo Role nghiệp vụ, cấp/thu hồi quyền hệ thống và quyền đối tượng trên schema, xem log kiểm toán (Standard & FGA). *(Khuyến nghị sử dụng tài khoản này)* |
+| **`SYS`** | *(Theo máy)* | **System DBA (Hệ thống)** | `MainForm` | Quản trị viên cấp cao nhất của hệ thống database. *(SYS không can thiệp sâu vào các luồng nghiệp vụ của dự án)* |
 | **`NV001`** | `ATBM123` | **Điều phối viên** | `CoordinatorForm` | Quản lý danh sách bệnh nhân; Tạo hồ sơ bệnh án (HSBA); Phân công bác sĩ điều trị và kỹ thuật viên dịch vụ. |
 | **`BS001`** | `ATBM123` | **Bác sĩ / Y sĩ** | `DoctorForm` | Chỉ xem các HSBA mình phụ trách điều trị (VPD); Cập nhật chẩn đoán/điều trị; Kê đơn thuốc; Chỉ định dịch vụ y tế. |
 | **`KTV01`** | `ATBM123` | **Kỹ thuật viên** | `TechnicianForm` | Chỉ xem dịch vụ được chỉ định cho mình (VPD); Chỉ được phép cập nhật cột Kết quả (`KETQUA`). |
@@ -81,10 +76,19 @@ Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 3. Đăng nhập bằng **`u8`** (Nhân viên khoa Tiêu hóa tại Hà Nội) -> Xem được **2 thông báo**: thông báo chung (t1) và thông báo riêng cho khoa Tiêu hóa Hà Nội (t6).
 
 ### Kịch bản 3: Demo Kiểm toán (Audit) & Khôi phục dữ liệu (Recovery)
-1. Đăng nhập bằng **`SYS AS SYSDBA`** và chạy file kịch bản tạo log: `@script SQL/08_audit_test_actions.sql`.
-2. Đọc log kiểm toán để thấy các hành vi truy cập hợp lệ và bất hợp pháp bằng cách chạy: `@script SQL/09_audit_read_logs.sql`.
-3. Để demo sự cố khôi phục:
-   * Chạy kịch bản tạo sự cố (Bác sĩ `BS001` sửa sai liều dùng đơn thuốc): `@script SQL/04_backup_recovery/03_demo_su_co.sql`.
-   * Đọc audit log định vị thời điểm xảy ra sự cố: `@script SQL/04_backup_recovery/04_check_audit_log.sql`.
-   * Chạy script khôi phục đơn thuốc bằng Flashback Query về thời điểm trước đó: `@script SQL/04_backup_recovery/05_flashback_restore.sql`.
+1. Chạy kịch bản tạo log nghiệp vụ: Mở SQL Developer đăng nhập bằng các tài khoản tương ứng hoặc chạy script `@script SQL/08_audit_test_actions.sql`.
+2. Đọc log kiểm toán: Đăng nhập ứng dụng bằng **`CQ09`** hoặc chạy script `@script SQL/09_audit_read_logs.sql` dưới tài khoản **`CQ09`** để xem lịch sử Standard & FGA Audit.
+3. Demo sự cố khôi phục đơn thuốc:
+   * **Tạo sự cố**: Đăng nhập app bằng bác sĩ `BS001` và thực hiện sửa sai liều dùng của một đơn thuốc (hoặc chạy trực tiếp bằng tài khoản bác sĩ).
+   * **Khôi phục qua giao diện**: Đăng nhập app bằng tài khoản **`CQ09`**, chọn tab `8. Recovery`, bấm `Tải audit`, chọn dòng audit sửa sai đơn thuốc tương ứng và bấm `Restore audit đã chọn` để khôi phục nhanh liều thuốc ban đầu bằng Flashback Query.
+   * **Khôi phục thủ công bằng SQL**: Nếu không dùng giao diện ứng dụng, đăng nhập SQL Developer bằng tài khoản **`CQ09`** và chạy script `@script SQL/Backup_recovery/02_demo_recovery.sql` để tìm mốc sự cố, xem trước dữ liệu cũ và tiến hành khôi phục.
+
 ---
+
+## 🛠️ PHẦN 5: CÁC LỖI THƯỜNG GẶP VÀ CÁCH XỬ LÝ
+| Lỗi gặp phải | Nguyên nhân | Cách xử lý |
+| :--- | :--- | :--- |
+| **`SP2-0310: Unable to open file...`** | Chạy lệnh `@` khi chưa mở trực tiếp file script hoặc sai thư mục hoạt động. | Dùng **File -> Open** mở trực tiếp file script cần chạy trong SQL Developer trước khi nhấn **F5**. |
+| **`ORA-01031: insufficient privileges`** | Chạy script bằng tài khoản không có quyền DBA/SYSDBA. | Đảm bảo kết nối bằng đúng tài khoản **`SYS AS SYSDBA`** ở các bước 1, 6 và 7. |
+| **Không thấy log kiểm toán** | Oracle chưa bật tham số ghi nhận log `audit_trail`. | Chạy lệnh `ALTER SYSTEM SET audit_trail = DB, EXTENDED SCOPE = SPFILE;` bằng `SYS AS SYSDBA` rồi **khởi động lại database**. |
+| **OLS không lọc dữ liệu** | Tính năng OLS chưa được kích hoạt trên database. | Chạy script `06_OLS_setup.sql` bằng `SYS AS SYSDBA` để bật cấu hình OLS và thiết lập chính sách nhãn. |

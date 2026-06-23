@@ -6,7 +6,7 @@ Repo này chứa mã nguồn và script Oracle cho phân hệ 2 của đồ án 
 
 - `WindowsFormsApp1/`: ứng dụng WinForms .NET Framework.
 - `script SQL/`: script tạo schema, user/role, VPD, OLS, audit.
-- `script SQL/04_backup_recovery/`: script backup, restore, flashback và demo sự cố.
+- `script SQL/Backup_recovery/`: script backup, restore, flashback và demo sự cố.
 - `HUONG_DAN_SU_DUNG.md`: hướng dẫn chạy đầy đủ từ setup Oracle đến demo ứng dụng.
 
 ## Chức năng đã triển khai
@@ -28,31 +28,42 @@ Repo này chứa mã nguồn và script Oracle cho phân hệ 2 của đồ án 
 - Oracle Database với PDB `XEPDB1`.
 - SQL Developer hoặc SQL*Plus.
 
-## Thứ tự setup nhanh
+## Thứ tự setup (Chạy thủ công)
 
-Bạn có thể chạy toàn bộ quy trình thiết lập môi trường bằng cách đăng nhập bằng tài khoản `SYS AS SYSDBA` và chạy file tổng hợp:
+> [!IMPORTANT]
+> **Phân định vai trò quản trị:**
+> - **`CQ09`**: Là tài khoản **Quản trị viên trực tiếp của dự án** (Project DBA / Schema Owner). Toàn bộ cấu trúc cơ sở dữ liệu y tế, phân quyền nghiệp vụ (RBAC, VPD, dữ liệu, view, procedure...) đều được tạo dưới schema và quản lý bởi tài khoản `CQ09`.
+> - **`SYS`**: Là tài khoản **Quản trị hệ thống Oracle (System DBA)**. Tài khoản này **không can thiệp sâu** vào dữ liệu nghiệp vụ của dự án, mà chỉ được sử dụng cho các bước cấu hình cấp hệ thống ban đầu (kích hoạt OLS, thiết lập tham số Audit hệ thống, tạo user `CQ09` và cấp quyền DBA cho `CQ09`).
 
-```sql
-@"script SQL/00_run_all.sql"
-```
-
-> [!NOTE]
-> **Phân định vai trò:** `SYS AS SYSDBA` chỉ dùng cho thiết lập hệ thống ban đầu (chạy `00_run_all.sql`). Khi hệ thống đã dựng xong, toàn bộ cấu trúc CSDL y tế, bảng biểu, VPD, RBAC đều được tạo và sở hữu bởi **`CQ09`**. Tài khoản `SYS` sẽ không can thiệp sâu vào các công việc quản lý nghiệp vụ và vận hành dự án.
-
-Hoặc chạy thủ công các script Oracle theo đúng thứ tự đánh số sau (chú ý tài khoản tương ứng):
+Hãy mở SQL Developer hoặc SQL*Plus và chạy lần lượt các script trong thư mục `script SQL/` theo đúng thứ tự đánh số sau (chú ý đăng nhập bằng tài khoản tương ứng):
 
 ```sql
--- Đăng nhập bằng SYS AS SYSDBA
+-- Bước 1: Đăng nhập bằng tài khoản SYS AS SYSDBA
+-- Khởi tạo schema CQ09, cấp các quyền Admin và tạo các thủ tục quản trị
 @"script SQL/01_StoredProcedures.sql"
 
--- Đăng nhập bằng CQ09 (Quản trị viên dự án)
+-- Bước 2: Đăng nhập bằng tài khoản CQ09
+-- Tạo các bảng nghiệp vụ, tạo index và nạp dữ liệu mẫu
 @"script SQL/02_schema_data.sql"
+
+-- Bước 3: Đăng nhập bằng tài khoản CQ09
+-- Khởi tạo các vai trò nghiệp vụ và tạo tài khoản database cho nhân sự/bệnh nhân
 @"script SQL/03_role.sql"
+
+-- Bước 4: Đăng nhập bằng tài khoản CQ09
+-- Tạo các view bảo mật cơ bản và cấp quyền SELECT, UPDATE có giới hạn cho các Role
 @"script SQL/04_RBAC.sql"
+
+-- Bước 5: Đăng nhập bằng tài khoản CQ09
+-- Áp dụng chính sách kiểm soát dòng/cột VPD lên các bảng dữ liệu gốc
 @"script SQL/05_VPD.sql"
 
--- Đăng nhập bằng SYS AS SYSDBA (Cấu hình OLS & Audit cấp hệ thống)
+-- Bước 6: Đăng nhập bằng tài khoản SYS AS SYSDBA
+-- Cấu hình Oracle Label Security (OLS) để phân nhãn bảo mật trên bảng THONGBAO
 @"script SQL/06_OLS_setup.sql"
+
+-- Bước 7: Đăng nhập bằng tài khoản SYS AS SYSDBA
+-- Cấu hình Standard Audit và Fine-Grained Audit (FGA) hệ thống
 @"script SQL/07_audit_setup.sql"
 ```
 
@@ -87,7 +98,7 @@ HUONG_DAN_SU_DUNG.md
 Phần backup/recovery có hướng dẫn riêng:
 
 ```text
-script SQL/04_backup_recovery/README.md
+script SQL/Backup_recovery/README.md
 ```
 
 ## Lưu ý

@@ -54,7 +54,7 @@ Sau đó restart Oracle và chạy lại `03_audit_setup.sql`.
 Đăng nhập `SYS AS SYSDBA` và chạy:
 
 ```sql
-@"script SQL/04_backup_recovery/00_setup.sql"
+@"script SQL/Backup_recovery/00_setup.sql"
 ```
 
 Script này kiểm tra `DATA_PUMP_DIR` trong PDB `XEPDB1`, cấp quyền Data Pump cho `CQ09`, tạo bảng `CQ09.BACKUP_LOG`, tạo procedure `CQ09.PRC_AUTO_EXPORT_SCHEMA`, và tạo job `CQ09.JOB_AUTO_EXPORT_SCHEMA` chạy hằng ngày.
@@ -63,8 +63,8 @@ Script này kiểm tra `DATA_PUMP_DIR` trong PDB `XEPDB1`, cấp quyền Data Pu
 
 Chạy file batch:
 
-```bat
-"script SQL\04_backup_recovery\01_backup_restore.bat"
+```cmd
+"script SQL\Backup_recovery\01_backup_restore.bat"
 ```
 
 Chọn:
@@ -90,10 +90,10 @@ Tab Recovery chỉ phục hồi cột `LIEUDUNG` của `CQ09.DONTHUOC`. Danh sá
 
 ### Bước 4 - Demo Flash Restore thủ công bằng SQL
 
-Nếu không dùng giao diện, chạy:
+Nếu không dùng giao diện, chạy bằng tài khoản **`CQ09`**:
 
 ```sql
-@"script SQL/04_backup_recovery/02_demo_recovery.sql"
+@"script SQL/Backup_recovery/02_demo_recovery.sql"
 ```
 
 Script này không tự gây sự cố nữa. Sự cố được tạo bằng app trước, sau đó script đọc audit, tính `RESTORE_TS`, preview dữ liệu flashback và chỉ restore nếu người chạy nhập `YES`.
