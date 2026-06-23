@@ -71,6 +71,9 @@ namespace WindowsFormsApp1
         private string _originalRxRecordId = "";
         private string _originalRxDate = "";
         private string _originalRxMedicine = "";
+        private string _originalSvcRecordId = "";
+        private string _originalSvcType = "";
+        private string _originalSvcDate = "";
 
         public DoctorForm(string connectionString)
         {
@@ -641,16 +644,19 @@ namespace WindowsFormsApp1
                 string sql;
                 if (update)
                 {
+                    var oldDate = ToOracleDate(string.IsNullOrWhiteSpace(_originalSvcDate) ? _txtSvcDate.Text : _originalSvcDate, "Ngay DV", false);
+                    if (oldDate == null) return;
+
                     sql = "UPDATE CQ09.VW_BACSI_HSBA_DV SET MAKTV = " + OracleSql.QLit(ktv) + " " +
-                          "WHERE MAHSBA = " + OracleSql.QLit(_txtSvcRecordId.Text) +
-                          " AND LOAIDV = " + OracleSql.QLit(_txtSvcType.Text) +
-                          " AND NGAYDV = " + ngayDv;
+                          "WHERE MAHSBA = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalSvcRecordId) ? _txtSvcRecordId.Text : _originalSvcRecordId) +
+                          " AND LOAIDV = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalSvcType) ? _txtSvcType.Text : _originalSvcType) +
+                          " AND NGAYDV = " + oldDate;
                 }
                 else
                 {
-                    sql = "INSERT INTO CQ09.VW_BACSI_HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV, KETQUA) VALUES (" +
+                    sql = "INSERT INTO CQ09.VW_BACSI_HSBA_DV(MAHSBA, LOAIDV, NGAYDV, MAKTV) VALUES (" +
                           OracleSql.QLit(_txtSvcRecordId.Text) + ", " + OracleSql.QLit(_txtSvcType.Text) + ", " +
-                          ngayDv + ", " + OracleSql.QLit(ktv) + ", NULL)";
+                          ngayDv + ", " + OracleSql.QLit(ktv) + ")";
                 }
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadServicesAsync();
@@ -667,11 +673,11 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var ngayDv = ToOracleDate(_txtSvcDate.Text, "Ngay DV");
+                var ngayDv = ToOracleDate(string.IsNullOrWhiteSpace(_originalSvcDate) ? _txtSvcDate.Text : _originalSvcDate, "Ngay DV", false);
                 if (ngayDv == null) return;
 
-                var sql = "DELETE FROM CQ09.VW_BACSI_HSBA_DV WHERE MAHSBA = " + OracleSql.QLit(_txtSvcRecordId.Text) +
-                          " AND LOAIDV = " + OracleSql.QLit(_txtSvcType.Text) +
+                var sql = "DELETE FROM CQ09.VW_BACSI_HSBA_DV WHERE MAHSBA = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalSvcRecordId) ? _txtSvcRecordId.Text : _originalSvcRecordId) +
+                          " AND LOAIDV = " + OracleSql.QLit(string.IsNullOrWhiteSpace(_originalSvcType) ? _txtSvcType.Text : _originalSvcType) +
                           " AND NGAYDV = " + ngayDv;
                 await OracleSql.ExecuteAsync(_connectionString, sql);
                 await LoadServicesAsync();
@@ -776,6 +782,9 @@ namespace WindowsFormsApp1
                 _txtSvcDate.Text = _gridRecords.CurrentRow != null ? Cell(_gridRecords.CurrentRow, "NGAY") : "";
                 _txtSvcResult.Text = "";
                 _cboTechnician.SelectedIndex = -1;
+                _originalSvcRecordId = "";
+                _originalSvcType = "";
+                _originalSvcDate = "";
                 return;
             }
             var r = _gridServices.SelectedRows[0];
@@ -785,6 +794,9 @@ namespace WindowsFormsApp1
             _txtSvcResult.Text = Cell(r, "KETQUA");
             var ktv = Cell(r, "MAKTV");
             if (!string.IsNullOrWhiteSpace(ktv)) _cboTechnician.SelectedValue = ktv;
+            _originalSvcRecordId = _txtSvcRecordId.Text;
+            _originalSvcType = _txtSvcType.Text;
+            _originalSvcDate = _txtSvcDate.Text;
         }
 
         private void BindSelectedPatient()

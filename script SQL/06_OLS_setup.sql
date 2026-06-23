@@ -241,6 +241,15 @@ END;
 PROMPT ===== 8. GAN NHAN DOC CHO USER U1 -> U8 =====
 
 BEGIN
+    -- Anh xa user demo voi nhom nghiep vu:
+    -- u1: Ban Giam doc toan vien.
+    -- u2: Lanh dao khoa Tim mach tai HCM.
+    -- u3: Lanh dao khoa Than kinh tai HN.
+    -- u4: Nhan vien khoa Than kinh tai HCM.
+    -- u5: Nhan vien khoa Tim mach tai HCM.
+    -- u6: Lanh dao phong/khoa Tim mach tai HCM.
+    -- u7: Lanh dao cap LDK phu trach tat ca khoa/co so.
+    -- u8: Nhan vien khoa Tieu hoa tai HN.
     LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u1', 'GD:TH,TK,TM:HCM,HN,HP');
     LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u2', 'LDK:TM:HCM');
     LBACSYS.SA_USER_ADMIN.SET_USER_LABELS('OLS_THONGBAO_POLICY', 'u3', 'LDK:TK:HN');
@@ -351,6 +360,50 @@ SELECT
     DIADIEM
 FROM CQ09.THONGBAO
 ORDER BY MATHONGBAO;
+
+PROMPT ===== 11. HAU KIEM POLICY / TABLE POLICY / LABEL / USER LABELS =====
+
+DECLARE
+    v_count NUMBER;
+
+    PROCEDURE check_count(p_name VARCHAR2, p_sql VARCHAR2, p_expected NUMBER) IS
+    BEGIN
+        EXECUTE IMMEDIATE p_sql INTO v_count;
+        IF v_count >= p_expected THEN
+            DBMS_OUTPUT.PUT_LINE('OK   - ' || p_name || ': ' || v_count);
+        ELSE
+            DBMS_OUTPUT.PUT_LINE('FAIL - ' || p_name || ': ' || v_count || ', expected >= ' || p_expected);
+        END IF;
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('FAIL - ' || p_name || ': ' || SQLERRM);
+    END;
+BEGIN
+    check_count(
+        'Policy OLS_THONGBAO_POLICY ton tai',
+        'SELECT COUNT(*) FROM DBA_SA_POLICIES WHERE POLICY_NAME = ''OLS_THONGBAO_POLICY''',
+        1
+    );
+
+    check_count(
+        'Policy da apply len CQ09.THONGBAO',
+        'SELECT COUNT(*) FROM DBA_SA_TABLE_POLICIES WHERE POLICY_NAME = ''OLS_THONGBAO_POLICY'' AND SCHEMA_NAME = ''CQ09'' AND TABLE_NAME = ''THONGBAO''',
+        1
+    );
+
+    check_count(
+        'Cot LABEL_TAG ton tai tren CQ09.THONGBAO',
+        'SELECT COUNT(*) FROM ALL_TAB_COLUMNS WHERE OWNER = ''CQ09'' AND TABLE_NAME = ''THONGBAO'' AND COLUMN_NAME = ''LABEL_TAG''',
+        1
+    );
+
+    check_count(
+        'Da gan label cho du 8 user demo u1 -> u8',
+        'SELECT COUNT(DISTINCT USER_NAME) FROM DBA_SA_USER_LABELS WHERE POLICY_NAME = ''OLS_THONGBAO_POLICY'' AND USER_NAME IN (''U1'',''U2'',''U3'',''U4'',''U5'',''U6'',''U7'',''U8'')',
+        8
+    );
+END;
+/
 
 PROMPT ===== TEST NHANH SAU KHI CHAY SCRIPT =====
 PROMPT CONNECT u1/ATBM123@XEPDB1

@@ -209,7 +209,15 @@ namespace WindowsFormsApp1
 
         private async Task<DataTable> QueryNotificationsAsync()
         {
-            var sqlBasic = "SELECT MATHONGBAO, NOIDUNG, NGAYGIO, DIADIEM FROM CQ09.THONGBAO ORDER BY MATHONGBAO";
+            var sqlBasic = @"
+SELECT
+    MATHONGBAO,
+    LABEL_TO_CHAR(LABEL_TAG) AS NHAN_OLS,
+    NOIDUNG,
+    NGAYGIO,
+    DIADIEM
+FROM CQ09.THONGBAO
+ORDER BY MATHONGBAO";
             return await OracleHelper.QueryAsync(_connectionString, sqlBasic);
         }
 

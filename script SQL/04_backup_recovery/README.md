@@ -1,100 +1,243 @@
-# HƯỚNG DẪN CHI TIẾT: SAO LƯU & PHỤC HỒI (BACKUP & RECOVERY)
-### PHÂN HỆ 2 - YÊU CẦU 4 (NHÓM 09)
+# Yêu cầu 4 - Backup và Recovery
 
-Tài liệu này hướng dẫn chi tiết cách chạy kịch bản sao lưu Data Pump, giả lập sự cố sửa sai dữ liệu, tra cứu vết bằng nhật ký kiểm toán (Audit Log) và khôi phục nhanh dữ liệu bằng **Flashback Query**.
+Thư mục này chứa kịch bản backup, restore, tạo sự cố, đọc audit log và phục hồi dữ liệu cho schema `CQ09`.
 
----
+## Mục tiêu demo
 
-## 📋 DANH SÁCH CÁC FILE TRONG PHÂN HỆ
+- Backup chủ động schema `CQ09` bằng Oracle Data Pump qua file batch.
+- Backup tự động schema `CQ09` hằng ngày bằng `DBMS_SCHEDULER` gọi procedure dùng `DBMS_DATAPUMP`.
+- Ghi kết quả backup tự động vào `CQ09.BACKUP_LOG`.
+- Tạo một sự cố sửa sai dữ liệu đơn thuốc.
+- Dùng audit/FGA để xác định user, SQL và thời điểm xảy ra sự cố.
+- Dùng Flashback Query để khôi phục dữ liệu về trạng thái trước sự cố.
+- Cung cấp lệnh RMAN tham khảo cho backup/recovery cấp database.
 
-| Tên File | Loại | Tài khoản chạy | Chức năng chi tiết |
-| :--- | :---: | :---: | :--- |
-| **`00_prepare_backup_privileges.sql`** | SQL | `SYS AS SYSDBA` | Cấp các quyền cần thiết cho `CQ09` để chạy Data Pump và phân quyền Bypass chính sách VPD/OLS khi backup. |
-| **`01_expdp_backup.bat`** | Script CMD | *(Chạy trong CMD)* | Tự động chạy lệnh `expdp` để sao lưu toàn bộ schema `CQ09` ra file dump `.dmp` (có tên kèm ngày giờ). |
-| **`02_impdp_restore.bat`** | Script CMD | *(Chạy trong CMD)* | Chạy lệnh `impdp` để phục hồi lại dữ liệu từ file dump đã chọn, ghi đè lên các bảng hiện có. |
-| **`03_demo_su_co.sql`** | SQL | `BS001` (Bác sĩ) | Giả lập sự cố: Bác sĩ đăng nhập và sửa sai liều dùng thuốc của bệnh án thành một chuỗi cảnh báo lỗi nguy hiểm. |
-| **`04_check_audit_log.sql`** | SQL | **`CQ09`** | Tra cứu log kiểm toán Fine-Grained Audit (FGA) để tìm chính xác mốc thời gian và câu lệnh SQL gây ra sự cố. |
-| **`05_flashback_restore.sql`** | SQL | **`CQ09`** | Thực hiện khôi phục dữ liệu liều dùng thuốc về trạng thái trước sự cố bằng công cụ Flashback Query. |
-| **`06_rman_commands.txt`** | Text | *(Tham khảo)* | Tổng hợp các lệnh sao lưu và khôi phục cấp vật lý sử dụng Oracle Recovery Manager (RMAN). |
+## File trong thư mục
 
----
+| File | Mục đích |
+|---|---|
+| `00_setup.sql` | Cấp quyền backup/restore, cấp quyền `DATA_PUMP_DIR`, tạo `BACKUP_LOG`, procedure backup tự động và scheduler job |
+| `01_backup_restore.bat` | Menu backup hoặc restore schema `CQ09` bằng Data Pump, nhập password khi chạy |
+| `02_demo_recovery.sql` | Script hỗ trợ Flash Restore thủ công: đọc audit, preview flashback, hỏi xác nhận rồi mới phục hồi |
+| `README.md` | Hướng dẫn này |
 
-## ⚡ TRÌNH TỰ CÁC BƯỚC DEMO KỊCH BẢN (1-2-3-4-5-6)
+## Điều kiện trước khi chạy
 
-### Điều kiện tiên quyết:
-* Bạn đã hoàn tất thiết lập hệ thống y tế bằng file tổng hợp `00_run_all.sql` ở thư mục gốc.
-* Tính năng kiểm toán (Audit) đã được bật trong Oracle (kiểm tra bằng lệnh `SHOW PARAMETER audit_trail;` và đảm bảo kết quả khác `NONE`).
+Đã chạy các script chính ở thư mục `script SQL/`:
 
----
-
-### 🟢 BƯỚC 1: Chuẩn bị quyền sao lưu
-Đăng nhập vào SQL Developer bằng tài khoản **`SYS AS SYSDBA`** và chạy file:
 ```sql
-@".\script SQL\04_backup_recovery\00_prepare_backup_privileges.sql"
+@"script SQL/01_StoredProcedures.sql"
+@"script SQL/02_schema_data.sql"
+@"script SQL/03_role.sql"
+@"script SQL/04_VPD.sql"
+@"script SQL/06_audit_setup.sql"
 ```
-*Chức năng: Cấp vai trò export/import database và quyền đặc biệt `EXEMPT ACCESS POLICY` cho `CQ09` để quá trình export không bị VPD/OLS cản trở.*
 
----
+Audit nên được bật:
 
-### 🟢 BƯỚC 2: Tạo bản sao lưu dự phòng (Data Pump Export)
-1. Mở cửa sổ **CMD** hoặc **PowerShell** và di chuyển đến thư mục gốc của dự án.
-2. Thực thi file batch sau:
-```cmd
-"script SQL\04_backup_recovery\01_expdp_backup.bat"
-```
-*Kết quả: Oracle sẽ xuất toàn bộ dữ liệu schema `CQ09` ra một file `.dmp` và file `.log` lưu tại thư mục Data Pump mặc định của Oracle Server (thường là `DATA_PUMP_DIR`). Hãy nhớ hoặc ghi lại tên file dump vừa tạo.*
-
----
-
-### 🟢 BƯỚC 3: Giả lập sự cố thay đổi dữ liệu trái phép
-1. Đăng nhập vào SQL Developer hoặc SQL*Plus bằng tài khoản bác sĩ **`BS001` / `ATBM123`**.
-2. Thực thi file script sau:
 ```sql
-@".\script SQL\04_backup_recovery\03_demo_su_co.sql"
+SHOW PARAMETER audit_trail;
 ```
-*Hiện tượng: Bác sĩ `BS001` cập nhật sai cột `LIEUDUNG` của thuốc `Metformin 1000mg` trong bệnh án `HSBA2024001` thành: `"SU CO DEMO - sai lieu nguy hiem, can phuc hoi"`.*
 
----
+Nếu kết quả là `NONE`, chạy bằng `SYS AS SYSDBA`:
 
-### 🟢 BƯỚC 4: Tra cứu Audit Log để tìm mốc thời gian sự cố
-Đăng nhập bằng tài khoản quản trị dự án **`CQ09`** và chạy file:
 ```sql
-@".\script SQL\04_backup_recovery\04_check_audit_log.sql"
+ALTER SYSTEM SET audit_trail = DB, EXTENDED SCOPE = SPFILE;
 ```
-*Kết quả: Màn hình sẽ hiển thị lịch sử kiểm toán FGA chi tiết. Hãy quan sát và ghi lại **thời điểm xảy ra sự cố (Audit Time)** và câu lệnh SQL gây lỗi của user `BS001`.*
 
----
+Sau đó restart Oracle và chạy lại `03_audit_setup.sql`.
 
-### 🟢 BƯỚC 5: Khôi phục dữ liệu bằng Flashback Query
-1. Mở file **`05_flashback_restore.sql`** bằng công cụ soạn thảo hoặc SQL Developer.
-2. Sửa lại mốc thời gian tại dòng khai báo `RESTORE_TS` thành thời điểm **ngay trước khi xảy ra sự cố** (lấy mốc thời gian tìm được ở Bước 4 trừ đi khoảng 10 giây). Ví dụ:
-   ```sql
-   DEFINE RESTORE_TS = "2026-06-23 11:30:00"
-   ```
-3. Đăng nhập bằng tài khoản **`CQ09`** và thực thi file:
+## Thứ tự demo đề xuất
+
+### Bước 1 - Chuẩn bị quyền và backup tự động
+
+Đăng nhập `SYS AS SYSDBA` và chạy:
+
 ```sql
-@".\script SQL\04_backup_recovery\05_flashback_restore.sql"
+@"script SQL/04_backup_recovery/00_setup.sql"
 ```
-*Kết quả: Hệ thống sẽ tự động đối chiếu dữ liệu cũ thông qua Flashback Query và cập nhật đè lại liều dùng thuốc ban đầu. Bạn sẽ thấy liều dùng thuốc được khôi phục nguyên vẹn.*
 
----
+Script này kiểm tra `DATA_PUMP_DIR` trong PDB `XEPDB1`, cấp quyền Data Pump cho `CQ09`, tạo bảng `CQ09.BACKUP_LOG`, tạo procedure `CQ09.PRC_AUTO_EXPORT_SCHEMA`, và tạo job `CQ09.JOB_AUTO_EXPORT_SCHEMA` chạy hằng ngày.
 
-### 🟢 BƯỚC 6: Khôi phục toàn bộ từ file dump Data Pump (Nếu cần thiết)
-Trong trường hợp gặp sự cố hỏng hóc nặng hoặc muốn reset toàn bộ bảng về thời điểm backup ở Bước 2:
-1. Mở cửa sổ **CMD** hoặc **PowerShell**.
-2. Chạy file batch:
-```cmd
-"script SQL\04_backup_recovery\02_impdp_restore.bat"
+### Bước 2 - Backup hoặc restore chủ động
+
+Chạy file batch:
+
+```bat
+"script SQL\04_backup_recovery\01_backup_restore.bat"
 ```
-3. Khi dấu nhắc lệnh yêu cầu, hãy nhập chính xác tên file dump đã tạo ở Bước 2 (ví dụ: `CQ09_backup_20260623_093000.dmp`) và nhấn Enter.
-*Kết quả: Toàn bộ bảng dữ liệu của schema `CQ09` sẽ được khôi phục về trạng thái lúc backup.*
 
----
+Chọn:
 
-## 🔍 PHÂN TÍCH & SO SÁNH CÁC PHƯƠNG PHÁP SAO LƯU
+- `1` để export schema `CQ09`.
+- `2` để import schema `CQ09` từ dump file trong `DATA_PUMP_DIR`.
 
-| Phương pháp | Cơ chế hoạt động | Ưu điểm khi demo đồ án | Hạn chế |
-| :--- | :--- | :--- | :--- |
-| **Data Pump** (`expdp`/`impdp`) | Sao lưu logic (xuất cấu trúc & dữ liệu ra file dump). | Dễ thực hiện, tạo ra file backup vật lý rõ ràng để nộp. | Không khôi phục được chính xác thời điểm mong muốn (point-in-time) nếu chưa có bản backup tại thời điểm đó. |
-| **Flashback Query** | Truy vấn trạng thái dữ liệu trong quá khứ thông qua phân vùng Undo. | Khôi phục cực nhanh các dòng dữ liệu bị sửa đổi sai mà không cần tắt Database hoặc phục hồi toàn bộ bảng. | Bị giới hạn bởi kích thước phân vùng Undo (`undo_retention`), dữ liệu quá cũ sẽ không flashback được. |
-| **RMAN** (Recovery Manager) | Sao lưu vật lý toàn bộ file dữ liệu (datafiles, controlfile...). | Giải pháp tiêu chuẩn cho doanh nghiệp, hỗ trợ phục hồi hệ thống sau lỗi phần cứng nặng. | Phức tạp hơn, cần quyền hệ thống cao và cấu hình chế độ ghi log lưu trữ (`ARCHIVELOG`). |
+File batch không hardcode password. Người chạy nhập user, password, schema và connect string khi thực hiện.
+
+### Bước 3 - Demo sự cố bằng app và phục hồi bằng giao diện
+
+1. Mở app WinForms.
+2. Đăng nhập bác sĩ `BS001`.
+3. Sửa sai `LIEUDUNG` của đơn thuốc cần demo.
+4. Đăng xuất hoặc mở phiên quản trị, đăng nhập `CQ09`, `SYSTEM` hoặc `SYS`.
+5. Vào tab `8. Recovery`.
+6. Bấm `Tai audit`.
+7. Chọn dòng audit update `DONTHUOC` cần phục hồi.
+8. Bấm `Restore audit da chon`.
+9. App sẽ tự lấy `MAHSBA`, `NGAYDT`, `TENTHUOC` và `suggested_restore_ts` từ audit, tự preview giá trị hiện tại/giá trị cũ trong hộp xác nhận, rồi chỉ restore nếu người demo chọn `Yes`.
+
+Tab Recovery chỉ phục hồi cột `LIEUDUNG` của `CQ09.DONTHUOC`. Danh sách audit được gom từ cả `UNIFIED_AUDIT_TRAIL` và `DBA_FGA_AUDIT_TRAIL`.
+
+### Bước 4 - Demo Flash Restore thủ công bằng SQL
+
+Nếu không dùng giao diện, chạy:
+
+```sql
+@"script SQL/04_backup_recovery/02_demo_recovery.sql"
+```
+
+Script này không tự gây sự cố nữa. Sự cố được tạo bằng app trước, sau đó script đọc audit, tính `RESTORE_TS`, preview dữ liệu flashback và chỉ restore nếu người chạy nhập `YES`.
+
+Heuristic trừ 10 giây chỉ phù hợp cho demo. Nếu có nhiều cập nhật gần nhau, cần chọn mốc thời gian thủ công. Flashback Query cũng phụ thuộc `UNDO_RETENTION` đủ lớn và undo chưa bị ghi đè.
+
+## Kiểm tra backup tự động
+
+Kết quả chính của backup tự động nằm trong bảng:
+
+```sql
+SELECT TO_CHAR(run_time, 'YYYY-MM-DD HH24:MI:SS') AS run_time,
+       dump_file,
+       status,
+       error_msg
+FROM CQ09.BACKUP_LOG
+ORDER BY run_time DESC;
+```
+
+Chạy thử job ngay, không cần đợi lịch hằng ngày:
+
+```sql
+BEGIN
+    DBMS_SCHEDULER.RUN_JOB('CQ09.JOB_AUTO_EXPORT_SCHEMA', use_current_session => TRUE);
+END;
+/
+```
+
+Procedure `CQ09.PRC_AUTO_EXPORT_SCHEMA` gọi `DBMS_DATAPUMP.WAIT_FOR_JOB`, nên job scheduler chỉ kết thúc sau khi Data Pump export thật sự hoàn tất.
+
+Có thể đối chiếu thêm trạng thái scheduler:
+
+```sql
+SELECT owner, job_name, enabled, state, repeat_interval
+FROM dba_scheduler_jobs
+WHERE owner = 'CQ09'
+  AND job_name = 'JOB_AUTO_EXPORT_SCHEMA';
+
+SELECT owner,
+       job_name,
+       status,
+       TO_CHAR(log_date, 'YYYY-MM-DD HH24:MI:SS') AS log_time,
+       error#,
+       additional_info
+FROM dba_scheduler_job_run_details
+WHERE owner = 'CQ09'
+  AND job_name = 'JOB_AUTO_EXPORT_SCHEMA'
+ORDER BY log_date DESC;
+```
+
+## Lệnh kiểm tra nhanh sau phục hồi
+
+```sql
+SELECT MAHSBA, NGAYDT, TENTHUOC, LIEUDUNG
+FROM CQ09.DONTHUOC
+WHERE MAHSBA = 'HSBA2024001'
+ORDER BY NGAYDT, TENTHUOC;
+```
+
+Đọc log audit:
+
+```sql
+SELECT db_user,
+       object_schema,
+       object_name,
+       policy_name,
+       TO_CHAR(timestamp, 'YYYY-MM-DD HH24:MI:SS') AS audit_time,
+       sql_text
+FROM dba_fga_audit_trail
+WHERE object_schema = 'CQ09'
+ORDER BY timestamp DESC;
+```
+
+## RMAN tham khảo lý thuyết
+
+Chạy RMAN trong CMD/PowerShell, không chạy trong SQL Developer:
+
+```bat
+rman target /
+```
+
+Backup toàn database:
+
+```rman
+BACKUP DATABASE;
+```
+
+Backup database kèm archive log:
+
+```rman
+BACKUP DATABASE PLUS ARCHIVELOG;
+```
+
+Restore/recover cơ bản:
+
+```rman
+SHUTDOWN IMMEDIATE;
+STARTUP MOUNT;
+RESTORE DATABASE;
+RECOVER DATABASE;
+ALTER DATABASE OPEN;
+```
+
+Ghi chú:
+
+- RMAN phù hợp backup/restore toàn database.
+- Để point-in-time recovery tốt cần cấu hình `ARCHIVELOG` và retention policy.
+- Trong demo đồ án, Data Pump và Flashback Query thao tác nhanh hơn trên schema `CQ09`.
+
+## So sánh phương pháp
+
+| Phương pháp | Ưu điểm | Hạn chế |
+|---|---|---|
+| Data Pump `expdp/impdp` | Dễ demo, phù hợp backup schema/table, có dump rõ ràng | Không phải point-in-time recovery chính xác nếu không có dump đúng thời điểm |
+| `DBMS_SCHEDULER` + `DBMS_DATAPUMP` | Đáp ứng backup tự động, có log trong `CQ09.BACKUP_LOG` | Vẫn phụ thuộc `DATA_PUMP_DIR`, quyền Oracle và dung lượng lưu dump |
+| Flashback Query | Phục hồi nhanh một số dòng về thời điểm trước sự cố | Phụ thuộc undo retention, không thay thế backup thật |
+| RMAN | Chuẩn Oracle cho backup/recovery toàn database | Cấu hình phức tạp hơn, cần quản lý archive log nếu muốn point-in-time recovery |
+
+## Lỗi thường gặp
+
+| Lỗi | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| `ORA-39087 directory name is invalid` | Directory Data Pump chưa tồn tại hoặc sai tên | Kiểm tra `DATA_PUMP_DIR` trong PDB `XEPDB1`, rồi chạy lại `00_setup.sql` |
+| `ORA-01031 insufficient privileges` | User thiếu quyền export/import, scheduler hoặc flashback | Chạy `00_setup.sql` bằng `SYS AS SYSDBA`; kiểm tra grant cho `CQ09` |
+| `CQ09.BACKUP_LOG` có `ERROR` | Procedure Data Pump lỗi khi export | Xem `error_msg`, log file trong `DATA_PUMP_DIR`, và `DBA_SCHEDULER_JOB_RUN_DETAILS` |
+| Không có audit log | Chưa bật `audit_trail` hoặc chưa chạy audit setup | Bật audit, restart Oracle, chạy lại `03_audit_setup.sql` |
+| Flashback không thấy dữ liệu cũ | Undo retention không đủ | Dùng dump backup hoặc giảm khoảng thời gian giữa sự cố và restore |
+| Import đè dữ liệu lỗi | Chế độ import chưa đúng | Kiểm tra tham số `TABLE_EXISTS_ACTION` trong `01_backup_restore.bat` |
+
+## Thay đổi so với bản gốc
+
+- Gộp 7 file thao tác thành 3 file chạy chính và README để giảm số bước demo.
+- Thay hai batch riêng bằng một menu backup/restore và bỏ hardcode password.
+- Thêm backup tự động bằng scheduler thay vì chỉ có backup chạy tay.
+- Thêm `CQ09.BACKUP_LOG` để kiểm tra kết quả backup tự động rõ hơn scheduler log.
+- Thêm tab `8. Recovery` trong app để demo Flash Restore bằng giao diện.
+- Đổi `02_demo_recovery.sql` thành script hỗ trợ demo thủ công, có preview và xác nhận trước khi restore.
+- Đưa lệnh RMAN vào README như phần tham khảo lý thuyết thay vì để file riêng.
+
+## Kết luận demo
+
+Kịch bản nộp nên trình bày theo chuỗi:
+1. Có backup Data Pump chủ động và backup tự động.
+2. Sự cố sửa sai dữ liệu được audit lại.
+3. Audit log giúp xác định thời điểm và câu SQL gây lỗi.
+4. Flashback Query khôi phục nhanh dòng bị sai.
+5. Data Pump và RMAN là phương án phục hồi dự phòng theo mức schema hoặc database.

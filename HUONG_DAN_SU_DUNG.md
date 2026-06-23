@@ -51,7 +51,6 @@ Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
 * **Service/PDB**: `XEPDB1` (PDB chứa schema dự án)
 * **User & Password**: Nhập theo bảng tài khoản demo bên dưới.
 * **SYSDBA**: Chỉ tích chọn ô này khi đăng nhập bằng tài khoản quản trị `SYS`.
-
 ---
 
 ## 🔑 PHẦN 3: DANH SÁCH TÀI KHOẢN DEMO & GIAO DIỆN TƯƠNG ỨNG
