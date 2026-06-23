@@ -1,8 +1,15 @@
--- =============================================================
--- YEU CAU 3 - DOC LOG STANDARD AUDIT VA FGA
---
--- Chay bang SYS AS SYSDBA hoac CQ09 tren PDB XEPDB1.
--- =============================================================
+-- =============================================================================
+-- FILE: 09_audit_read_logs.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Truy vấn và hiển thị nhật ký kiểm toán hệ thống (Audit Logs) đã ghi nhận.
+--   - Đọc Standard Audit từ bảng dba_audit_trail (các hành vi truy vấn và các hành vi lỗi).
+--   - Đọc Fine-Grained Audit từ bảng dba_fga_audit_trail (các câu lệnh SQL chi tiết
+--     can thiệp vào các cột nhạy cảm).
+--   - Phân tích các lệnh lỗi quan trọng (Returncode khác 0) để phát hiện tấn công/truy cập trái phép.
+-- TÀI KHOẢN THỰC THI: CQ09 (Quản trị viên dự án)
+-- THỨ TỰ THỰC THI: Chạy sau khi test các thao tác nghiệp vụ để kiểm tra log (Bước 9).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET LINESIZE 220;

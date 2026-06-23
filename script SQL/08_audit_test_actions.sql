@@ -1,12 +1,17 @@
--- =============================================================
--- YEU CAU 3 - TEST ACTIONS CHO AUDIT/FGA
---
--- Chay bang SQL*Plus/SQLcl de lenh CONNECT hoat dong tot.
--- Neu dung SQL Developer, co the copy tung khoi va chay tren connection
--- tuong ung: BS001, KTV01, BN000001, CQ09/SYS.
---
--- Can chay truoc: 03_audit_setup.sql
--- =============================================================
+-- =============================================================================
+-- FILE: 08_audit_test_actions.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Chạy các câu lệnh test thử nghiệm (gồm hành động hợp pháp và bất hợp pháp)
+--     để hệ thống Oracle phát sinh log kiểm toán (Audit Log).
+--   - Đăng nhập dưới dạng các user BS001, KTV01, BN000001 để:
+--     + Xem/sửa hồ sơ bệnh án, đơn thuốc, cập nhật kết quả dịch vụ đúng vai trò.
+--     + Gọi thử thủ tục P_AUDIT_DEMO_MARK và hàm F_AUDIT_DEMO_USER.
+--     + Thực hiện các hành vi bất hợp pháp (ví dụ: Bệnh nhân cố tình sửa HSBA,
+--       xóa chỉ định dịch vụ).
+-- TÀI KHOẢN THỰC THI: CONNECT chuyển đổi linh hoạt qua lệnh SQL*Plus (SYS, BS001, KTV01, BN000001).
+-- THỨ TỰ THỰC THI: Chạy sau khi đã cấu hình Audit thành công (Bước 8).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
@@ -82,6 +87,6 @@ DELETE FROM CQ09.HSBA_DV
 WHERE MAHSBA = 'HSBA2024001';
 
 PROMPT ===== 6. DOC LOG AUDIT SAU TEST =====
-PROMPT Hay chay 03_audit_read_logs.sql bang SYS AS SYSDBA hoac CQ09.
+PROMPT Hay chay 09_audit_read_logs.sql bang CQ09.
 
 WHENEVER SQLERROR EXIT;

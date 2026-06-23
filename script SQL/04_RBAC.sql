@@ -1,17 +1,17 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE: RBAC.sql
--- CẤU HÌNH CƠ CHẾ KIỂM SOÁT TRUY CẬP DỰA TRÊN VAI TRÒ (RBAC VÀ VIEW)
--- 
--- HƯỚNG DẪN CHẠY SCRIPT:
---   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
---   2. Thực thi file này để tạo các View bảo mật lọc dữ liệu mức dòng và cấp quyền chọn lọc cột cho các vai trò.
---   3. Lệnh chạy: @d:\CODE\Project_ATBM\Project_ATBM_CSDL\WindowsFormsApp1\RBAC.sql
--- 
--- Lưu ý:
---   - Chạy SAU file role.sql.
--- =============================================================
+-- =============================================================================
+-- FILE: 04_RBAC.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Cấu hình cơ chế kiểm soát truy cập dựa trên vai trò (RBAC) truyền thống.
+--   - Tạo các View bảo mật lọc dữ liệu mức dòng cơ bản cho từng đối tượng đăng nhập:
+--     + vw_benhnhan (Bệnh nhân tự xem thông tin của mình).
+--     + vw_ktv_HSBA_DV (Kỹ thuật viên tự xem dịch vụ y tế được phân công).
+--     + vw_nhanvien_canhan (Nhân viên tự xem thông tin cá nhân).
+--   - Thực hiện thu hồi quyền trực tiếp trên bảng và cấp quyền chọn lọc trên View
+--     cùng các quyền UPDATE có giới hạn cột (như chỉ sửa SODT, QUEQUAN của chính mình).
+-- TÀI KHOẢN THỰC THI: SYS hoặc tài khoản quản trị CQ09
+-- THỨ TỰ THỰC THI: Bước 4 trong chuỗi thiết lập (sau khi tạo xong user/role).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
@@ -25,6 +25,7 @@ ALTER SESSION SET CURRENT_SCHEMA = CQ09;
 -- Bệnh nhân chỉ xem được thông tin của chính mình (qua view)
 -- và chỉ cập nhật các cột địa chỉ, tiền sử bệnh, dị ứng thuốc.
 -- =============================================================
+
 -- Tạo view hiển thị thông tin cá nhân của bệnh nhân đăng nhập
 CREATE OR REPLACE VIEW vw_benhnhan AS
 SELECT * 

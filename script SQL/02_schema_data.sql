@@ -1,15 +1,17 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE 01: HOAN THIEN SCHEMA + SAMPLE DATA
--- 
--- HƯỚNG DẪN CHẠY SCRIPT:
---   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
---   2. Thực thi file này để khởi tạo cấu trúc bảng và nạp dữ liệu mẫu.
--- 
--- Lưu ý: File này chỉ tạo schema và dữ liệu mẫu, không tạo user/role.
--- Chạy TRƯỚC file role.sql.
--- =============================================================
+-- =============================================================================
+-- FILE: 02_schema_data.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Khởi tạo cấu trúc cơ sở dữ liệu y tế (bảng NHANVIEN, BENHNHAN, HSBA,
+--     HSBA_DV, DONTHUOC, THONGBAO).
+--   - Tạo các Index, Sequence, và Comment cho bảng dữ liệu.
+--   - Nạp dữ liệu mẫu lớn phục vụ kiểm thử (gồm hàng chục điều phối viên,
+--     bác sĩ, kỹ thuật viên và bệnh nhân).
+--   - Tạo các View hỗ trợ đối chiếu tài khoản Oracle đăng nhập với thông tin
+--     nghiệp vụ (V_NGUOIDUNG_HE_THONG, V_MY_ACCOUNT).
+-- TÀI KHOẢN THỰC THI: SYS hoặc tài khoản quản trị CQ09
+-- THỨ TỰ THỰC THI: Bước 2 trong chuỗi thiết lập.
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
@@ -262,7 +264,7 @@ INSERT INTO HSBA VALUES ('HSBA2024011','BN000011',DATE '2024-04-02',N'COPD đợ
 INSERT INTO HSBA VALUES ('HSBA2024012','BN000012',DATE '2024-04-10',N'Viêm khớp dạng thấp giai đoạn sớm',N'Methotrexate 10mg/tuần + Folic acid + hydroxychloroquine','BS008',N'Tim mạch',NULL);
 INSERT INTO HSBA VALUES ('HSBA2024013','BN000013',DATE '2024-04-15',N'Dị ứng da tiếp xúc cấp tính',N'Loratadine 10mg/ngày + hydrocortisone cream 1%','BS004',N'Tiêu hóa',N'Tránh các tác nhân gây dị ứng');
 INSERT INTO HSBA VALUES ('HSBA2024014','BN000014',DATE '2024-04-22',N'Sỏi thận 8mm niệu quản trái',N'Tamsulosin 0.4mg/tối, uống nhiều nước + ESWL nếu không tự ra','BS009',N'Thần kinh',NULL);
-INSERT INTO HSBA VALUES ('HSBA2024015','BN000015',DATE '2024-05-03',N'Viêm phế quản cấp do vi khuẩn',N'Amoxicillin 500mg x 3 lần/ngày x 7 ngày + Bromhexine','BS006',N'Thần kinh',N'Khỏi sau 7 ngày');
+INSERT INTO HSBA VALUES ('HSBA2024015','BN000015',DATE '2024-05-03',N'Viêm phế quan cấp do vi khuẩn',N'Amoxicillin 500mg x 3 lần/ngày x 7 ngày + Bromhexine','BS006',N'Thần kinh',N'Khỏi sau 7 ngày');
 INSERT INTO HSBA VALUES ('HSBA2024016','BN000001',DATE '2024-06-15',N'Hạ đường huyết triệu chứng',N'Bổ sung glucose, điều chỉnh liều Metformin','BS001',N'Tiêu hóa',N'Theo dõi chặt chẽ đường huyết');
 INSERT INTO HSBA VALUES ('HSBA2024017','BN000003',DATE '2024-07-01',N'Ung thư dạ dày giai đoạn IB (sau sinh thiết)',N'Phẫu thuật cắt dạ dày bán phần + hóa trị bổ trợ','BS007',N'Tiêu hóa',N'Chuyển khoa phẫu thuật');
 INSERT INTO HSBA VALUES ('HSBA2024018','BN000006',DATE '2024-08-10',N'Cơn đau thắt ngực không ổn định',N'Aspirin + Heparin + chụp mạch vành','BS005',N'Tim mạch',N'Can thiệp đặt stent động mạch vành');
@@ -326,7 +328,7 @@ INSERT INTO THONGBAO VALUES ('TB001',N'Họp toàn bộ nhân viên về quy tr�
 INSERT INTO THONGBAO VALUES ('TB002',N'Họp Ban Giám đốc: Kế hoạch mở rộng bệnh viện năm 2025',TIMESTAMP '2024-03-05 14:00:00',N'Phòng họp Ban Giám đốc - Cơ sở Hà Nội');
 INSERT INTO THONGBAO VALUES ('TB003',N'Họp Lãnh đạo các khoa: Kế hoạch mua sắm thiết bị y tế quý 2',TIMESTAMP '2024-03-10 09:00:00',N'Phòng họp lớn - Cơ sở Hải Phòng');
 INSERT INTO THONGBAO VALUES ('TB004',N'Họp khẩn Khoa Tiêu hóa: Xử lý ca ngộ độc thực phẩm hàng loạt',TIMESTAMP '2024-03-15 16:00:00',N'Phòng họp Khoa Tiêu hóa');
-INSERT INTO THONGBAO VALUES ('TB005',N'Hội thảo nội bộ: Kỹ thuật nội soi mới dành cho KTV Tiêu hóa - CS HCM',TIMESTAMP '2024-03-20 07:30:00',N'Phòng đào tạo - CS TP.HCM');
+INSERT INTO THONGBAO VALUES ('TB005',N'Hội thảo nội bộ: Kỹ thuật nội sơ mới dành cho KTV Tiêu hóa - CS HCM',TIMESTAMP '2024-03-20 07:30:00',N'Phòng đào tạo - CS TP.HCM');
 INSERT INTO THONGBAO VALUES ('TB006',N'Cập nhật quy trình xét nghiệm COVID: KTV Tiêu hóa Hà Nội tham dự',TIMESTAMP '2024-03-22 10:00:00',N'Phòng họp Khoa Tiêu hóa - CS Hà Nội');
 INSERT INTO THONGBAO VALUES ('TB007',N'Họp khẩn Lãnh đạo Khoa Tiêu hóa và Thần kinh tại Hải Phòng',TIMESTAMP '2024-03-25 15:00:00',N'Phòng họp liên khoa - CS Hải Phòng');
 
@@ -434,7 +436,6 @@ END;
 /
 
 -- Bo sung benh nhan mau den BN000050.
--- De bai neu khoang 100000 benh nhan; khi demo khong nen tao 100000 Oracle user vi rat nang.
 DECLARE
     v_id VARCHAR2(10);
     v_cccd VARCHAR2(12);

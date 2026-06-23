@@ -1,11 +1,18 @@
--- =============================================================
--- YEU CAU 4 - PHUC HOI BANG FLASHBACK QUERY
---
--- Chay bang CQ09/ATBM123 hoac DBA tren PDB XEPDB1.
--- Script tu uu tien lay thoi diem FGA moi nhat cua su co "SU CO DEMO"
--- roi tru 10 giay de lam moc flashback. Neu khong thay log, sua RESTORE_TS
--- thanh thoi diem truoc su co, lay tu 03_demo_su_co.sql hoac audit log.
--- =============================================================
+-- =============================================================================
+-- FILE: 05_flashback_restore.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Khôi phục nhanh dữ liệu về trạng thái trước sự cố sử dụng Flashback Query.
+--   - Cơ chế tự động:
+--     + Tự quét tìm log FGA mới nhất liên quan đến từ khóa 'SU CO DEMO'.
+--     + Tự xác định mốc thời gian an toàn (lấy mốc sự cố trừ đi 10 giây).
+--     + Đọc dữ liệu cũ tại mốc thời gian đó (AS OF TIMESTAMP) và ghi đè khôi
+--       phục lại cột LIEUDUNG của bảng CQ09.DONTHUOC.
+--   - Cơ chế thủ công: Nếu không tìm thấy log FGA, cho phép cấu hình tham số
+--     RESTORE_TS thủ công để khôi phục.
+-- TÀI KHOẢN THỰC THI: CQ09 (Quản trị viên dự án)
+-- THỨ TỰ THỰC THI: Chạy sau khi đã xác định được mốc thời gian sự cố (Bước 5).
+-- =============================================================================
 
 SET DEFINE ON;
 SET SERVEROUTPUT ON;

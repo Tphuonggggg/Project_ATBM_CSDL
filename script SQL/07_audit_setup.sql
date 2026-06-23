@@ -1,17 +1,18 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2 - YEU CAU 3: KIEM TOAN / AUDIT
--- File: 03_audit_setup.sql
---
--- Chay bang SYS AS SYSDBA tren PDB XEPDB1 sau khi da chay:
---   StoredProcedures.sql, schema_data.sql, role.sql, RBAC.sql, VPD.sql
---
--- Muc tieu:
---   1. Kiem tra audit_trail.
---   2. Cau hinh Standard Audit cho table/view/procedure/function.
---   3. Cau hinh Fine-grained Audit cho cac cot nhay cam.
---   4. Cung cap cau truy van doc log audit.
--- =============================================================
+-- =============================================================================
+-- FILE: 07_audit_setup.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Cấu hình giải pháp nhật ký hệ thống (Audit) mức độ thường và nâng cao.
+--   - Cấp các quyền cần thiết về Audit và FGA cho schema CQ09.
+--   - Cấu hình Standard Audit:
+--     + Theo dõi thao tác đọc thành công (SELECT SUCCESSFUL) trên bảng BENHNHAN.
+--     + Theo dõi thao tác sửa lỗi thất bại (UPDATE UNSUCCESSFUL) trên HSBA, DONTHUOC.
+--     + Theo dõi thao tác trên các View nghiệp vụ y tế.
+--   - Cấu hình Fine-Grained Audit (FGA) bằng DBMS_FGA.ADD_POLICY để theo dõi
+--     sát sao khi các cột nhạy cảm như (CHANDOAN, DIEUTRI, KETLUAN) hay (TENTHUOC, LIEUDUNG) bị chỉnh sửa.
+-- TÀI KHOẢN THỰC THI: SYS AS SYSDBA
+-- THỨ TỰ THỰC THI: Bước 7 trong chuỗi thiết lập.
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;

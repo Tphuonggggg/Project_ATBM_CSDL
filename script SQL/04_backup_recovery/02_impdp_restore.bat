@@ -1,8 +1,16 @@
 @echo off
+rem ============================================================================
+rem FILE: 02_impdp_restore.bat
+rem ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+rem CHỨC NĂNG:
+rem   - Phục hồi (Import) lại schema CQ09 từ file dump đã backup trước đó sử dụng
+rem     Oracle Data Pump (impdp).
+rem   - Chế độ ghi đè bảng cũ nếu đã tồn tại (table_exists_action=replace).
+rem HƯỚNG DẪN CHẠY: Chạy trực tiếp trong môi trường CMD/PowerShell trên máy Oracle Server.
+rem   Yêu cầu nhập tên file dump tương ứng (ví dụ: CQ09_backup_20260609_103000.dmp).
+rem THỨ TỰ THỰC THI: Sử dụng khi cần khôi phục lại toàn bộ dữ liệu từ file dump backup.
+rem ============================================================================
 setlocal
-
-rem Restore schema CQ09 tu file dump Data Pump.
-rem Nhap ten file dump da tao trong DATA_PUMP_DIR, vi du CQ09_backup_20260609_103000.dmp
 
 for /f %%i in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set STAMP=%%i
 

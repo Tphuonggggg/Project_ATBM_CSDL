@@ -1,451 +1,91 @@
-# Hướng dẫn sử dụng phân hệ 2 - Nhóm 09
-
-Tài liệu này hướng dẫn cài đặt, chạy script Oracle và demo ứng dụng WinForms cho phân hệ 2 của đồ án An toàn bảo mật HTTT.
-
-## 1. Mục tiêu phân hệ
-
-Phân hệ 2 xây dựng hệ thống quản lý dữ liệu y tế có kiểm soát truy cập và kiểm toán trên Oracle:
-
-- Quản lý dữ liệu bệnh nhân, nhân viên, hồ sơ bệnh án, đơn thuốc, dịch vụ hỗ trợ chẩn đoán và thông báo.
-- Phân quyền theo vai trò: điều phối viên, bác sĩ/y sĩ, kỹ thuật viên, bệnh nhân.
-- Kiểm soát truy cập mức dòng/cột bằng RBAC, VPD và view bảo mật.
-- Phát tán thông báo bằng Oracle Label Security.
-- Audit/FGA các thao tác nhạy cảm.
-- Backup, phục hồi và demo khôi phục dữ liệu sau sự cố.
-- Ứng dụng WinForms để demo theo từng vai trò và màn hình quản trị DBA.
-
-## 2. Yêu cầu môi trường
-
-- Windows.
-- Visual Studio có hỗ trợ .NET Framework WinForms.
-- .NET Framework 4.8.
-- Oracle Database có PDB `XEPDB1`.
-- SQL Developer hoặc SQL*Plus.
-- Oracle Managed Data Access đã restore theo `packages.config`.
-
-Tài khoản demo trong script thường dùng mật khẩu:
-
-```text
-ATBM123
-```
-
-Khuyến nghị khi chạy script lần đầu: dùng `SYS AS SYSDBA`.
-
-## 3. Cấu trúc thư mục quan trọng
-
-```text
-Project_ATBM_CSDL/
-├─ HUONG_DAN_SU_DUNG.md
-├─ README.md
-├─ script SQL/
-│  ├─ StoredProcedures.sql
-│  ├─ schema_data.sql
-│  ├─ role.sql
-│  ├─ VPD.sql
-│  ├─ RBAC.sql
-│  ├─ OLS_setup.sql
-│  ├─ 03_audit_setup.sql
-│  ├─ 03_audit_test_actions.sql
-│  ├─ 03_audit_read_logs.sql
-│  └─ 04_backup_recovery/
-└─ WindowsFormsApp1/
-   ├─ WindowsFormsApp1.csproj
-   ├─ LoginForm.cs
-   ├─ MainForm.cs
-   ├─ CoordinatorForm.cs
-   ├─ DoctorForm.cs
-   ├─ TechnicianForm.cs
-   ├─ PatientForm.cs
-   └─ OlsDemoForm.cs
-```
-
-## 4. Thứ tự chạy script Oracle
-
-Chạy script theo đúng thứ tự sau để tránh thiếu user, role, view hoặc policy.
-
-### Bước 1 - Tạo user quản trị và stored procedure quản trị
-
-Đăng nhập bằng `SYS AS SYSDBA`, sau đó chạy:
-
-```sql
-@"script SQL/StoredProcedures.sql"
-```
-
-Script này tạo user/schema `CQ09`, cấp quyền cần thiết cho môi trường lab và tạo các procedure quản trị user/role/grant/revoke.
-
-Kiểm tra nhanh:
-
-```sql
-SELECT object_name, status
-FROM all_objects
-WHERE owner = 'CQ09'
-  AND object_type = 'PROCEDURE'
-  AND object_name LIKE 'SP_%'
-ORDER BY object_name;
-```
-
-Kết quả mong đợi: các procedure `SP_%` ở trạng thái `VALID`.
-
-### Bước 2 - Tạo schema và dữ liệu mẫu
-
-Chạy:
-
-```sql
-@"script SQL/schema_data.sql"
-```
-
-Script tạo các bảng chính:
-
-- `NHANVIEN`
-- `BENHNHAN`
-- `HSBA`
-- `HSBA_DV`
-- `DONTHUOC`
-- `THONGBAO`
-
-Kiểm tra nhanh:
-
-```sql
-SELECT 'NHANVIEN' AS doi_tuong, COUNT(*) AS so_luong FROM CQ09.NHANVIEN
-UNION ALL SELECT 'BENHNHAN', COUNT(*) FROM CQ09.BENHNHAN
-UNION ALL SELECT 'HSBA', COUNT(*) FROM CQ09.HSBA
-UNION ALL SELECT 'HSBA_DV', COUNT(*) FROM CQ09.HSBA_DV
-UNION ALL SELECT 'DONTHUOC', COUNT(*) FROM CQ09.DONTHUOC
-UNION ALL SELECT 'THONGBAO', COUNT(*) FROM CQ09.THONGBAO;
-```
-
-### Bước 3 - Tạo user và role nghiệp vụ
-
-Chạy:
-
-```sql
-@"script SQL/role.sql"
-```
-
-Script tạo các role:
-
-- `RL_DIEUPHOI`
-- `RL_BACSI`
-- `RL_KYTHUATVIEN`
-- `RL_BENHNHAN`
-
-Script cũng tạo user Oracle tương ứng với mã nhân viên/bệnh nhân trong dữ liệu mẫu.
-
-Ví dụ tài khoản demo:
-
-```text
-NV001 / ATBM123
-BS001 / ATBM123
-KTV01 / ATBM123
-BN000001 / ATBM123
-```
-
-### Bước 4 - Thiết lập VPD và view nghiệp vụ
-
-Chạy:
-
-```sql
-@"script SQL/VPD.sql"
-```
-
-Script này là phần chính để demo phân quyền nghiệp vụ:
-
-- Bác sĩ chỉ xem/sửa hồ sơ mình phụ trách.
-- Kỹ thuật viên chỉ xem dịch vụ được phân công và chỉ cập nhật kết quả.
-- Bệnh nhân chỉ xem hồ sơ cá nhân và cập nhật các cột được phép.
-- Nhân viên chỉ xem hồ sơ cá nhân và cập nhật quê quán/số điện thoại.
-- Điều phối viên có quyền điều phối bệnh nhân, hồ sơ, bác sĩ và kỹ thuật viên.
-
-Các view ứng dụng sử dụng:
-
-- `CQ09.VW_BENHNHAN`
-- `CQ09.VW_NHANVIEN_CANHAN`
-- `CQ09.VW_KTV_HSBA_DV`
-- `CQ09.VW_BACSI_HSBA`
-- `CQ09.VW_BACSI_BENHNHAN`
-- `CQ09.VW_BACSI_DONTHUOC`
-- `CQ09.VW_BACSI_HSBA_DV`
-- `CQ09.VW_KTV_LIST`
-
-### Bước 5 - Thiết lập OLS
-
-Chạy bằng tài khoản có quyền SYS/OLS:
-
-```sql
-@"script SQL/OLS_setup.sql"
-```
-
-Script tạo policy OLS cho bảng `CQ09.THONGBAO`, tạo user demo `u1` đến `u8` và gán nhãn đọc tương ứng.
-
-Tài khoản demo:
-
-```text
-u1 / ATBM123
-u2 / ATBM123
-...
-u8 / ATBM123
-```
-
-### Bước 6 - Thiết lập audit
-
-Chạy bằng `SYS AS SYSDBA`:
-
-```sql
-@"script SQL/03_audit_setup.sql"
-```
-
-Nếu `audit_trail = NONE`, cần bật audit và restart Oracle:
-
-```sql
-ALTER SYSTEM SET audit_trail = DB, EXTENDED SCOPE = SPFILE;
-```
-
-Sau đó chạy lại script audit.
-
-Để tạo log demo:
-
-```sql
-@"script SQL/03_audit_test_actions.sql"
-```
-
-Để đọc log:
-
-```sql
-@"script SQL/03_audit_read_logs.sql"
-```
-
-### Bước 7 - Backup và recovery
-
-Xem hướng dẫn chi tiết trong:
-
-```text
-script SQL/04_backup_recovery/README.md
-```
-
-Luồng chính:
-
-1. Chuẩn bị quyền backup.
-2. Export Data Pump.
-3. Tạo sự cố demo.
-4. Đọc audit log xác định thời điểm.
-5. Flashback khôi phục dữ liệu.
-6. Import dump khi cần phục hồi schema/table.
-
-## 5. Build và chạy ứng dụng WinForms
-
-Mở project bằng Visual Studio:
-
-```text
-WindowsFormsApp1/WindowsFormsApp1.csproj
-```
-
-Hoặc mở solution:
-
-```text
-WindowsFormsApp1.slnx
-```
-
-Sau đó:
-
-1. Restore NuGet packages nếu Visual Studio chưa tự restore.
-2. Build project `WindowsFormsApp1`.
-3. Chạy ứng dụng.
-
-Executable sau khi build thường nằm tại:
-
-```text
-WindowsFormsApp1/bin/Debug/NHOM09.exe
-WindowsFormsApp1/bin/Release/NHOM09.exe
-```
-
-## 6. Đăng nhập ứng dụng
-
-Màn hình login cần nhập:
-
-- Host: ví dụ `localhost`
-- Port: thường là `1521`
-- Service/PDB: ví dụ `XEPDB1`
-- User
-- Password
-- Tick `SYSDBA` nếu đăng nhập bằng SYS
-
-Ứng dụng tự nhận diện vai trò qua `CQ09.V_MY_ACCOUNT` và mở form phù hợp.
-
-| Tài khoản | Form mở ra | Mục đích demo |
-|---|---|---|
-| `SYS` hoặc `CQ09` | `MainForm` | Quản trị DBA: user, role, grant, revoke, xem quyền, object browser |
-| `NV001` | `CoordinatorForm` | Điều phối bệnh nhân, HSBA, bác sĩ, KTV |
-| `BS001` | `DoctorForm` | Bác sĩ xem/sửa HSBA, đơn thuốc, chỉ định dịch vụ |
-| `KTV01` | `TechnicianForm` | KTV xem dịch vụ được giao, cập nhật kết quả |
-| `BN000001` | `PatientForm` | Bệnh nhân xem/cập nhật thông tin cá nhân |
-| `u1` đến `u8` | `OlsDemoForm` | Demo Oracle Label Security |
-
-## 7. Chức năng theo từng vai trò
-
-### 7.1. DBA/Admin
-
-Màn hình `MainForm` có 6 tab:
-
-1. User: tạo, đổi mật khẩu, khóa/mở khóa, xóa user.
-2. Role: tạo role thường hoặc role có password, xóa role.
-3. Grant: cấp system privilege, role, object privilege.
-4. Revoke: thu hồi system privilege, role, object privilege.
-5. Xem quyền: xem quyền hệ thống, role và object/column privilege của user/role.
-6. Object Browser: duyệt owner, object và cột.
-
-Trước khi dùng tab Grant/Revoke, bấm nút tải danh sách user/role.
-
-### 7.2. Điều phối viên
-
-Đăng nhập ví dụ:
-
-```text
-NV001 / ATBM123
-```
-
-Chức năng:
-
-- Xem, thêm, sửa bệnh nhân.
-- Tạo hồ sơ bệnh án.
-- Phân công bác sĩ phụ trách.
-- Tạo/chỉnh phân công dịch vụ hỗ trợ chẩn đoán cho kỹ thuật viên.
-
-### 7.3. Bác sĩ/Y sĩ
-
-Đăng nhập ví dụ:
-
-```text
-BS001 / ATBM123
-```
-
-Chức năng:
-
-- Xem các HSBA do mình phụ trách.
-- Cập nhật chẩn đoán, điều trị, kết luận.
-- Thêm/sửa/xóa đơn thuốc trong phạm vi HSBA được phụ trách.
-- Chỉ định dịch vụ chẩn đoán và phân công KTV.
-- Xem/cập nhật tiền sử bệnh, tiền sử gia đình, dị ứng thuốc của bệnh nhân mình điều trị.
-- Xem/cập nhật quê quán và số điện thoại cá nhân.
-
-### 7.4. Kỹ thuật viên
-
-Đăng nhập ví dụ:
-
-```text
-KTV01 / ATBM123
-```
-
-Chức năng:
-
-- Chỉ xem các dịch vụ được phân công cho chính mình.
-- Chỉ cập nhật cột `KETQUA`.
-- Xem/cập nhật quê quán và số điện thoại cá nhân.
-
-### 7.5. Bệnh nhân
-
-Đăng nhập ví dụ:
-
-```text
-BN000001 / ATBM123
-```
-
-Chức năng:
-
-- Xem thông tin cá nhân của chính mình.
-- Cập nhật địa chỉ, tiền sử bệnh, tiền sử gia đình và dị ứng thuốc.
-- Không được tự sửa mã bệnh nhân, họ tên, ngày sinh, CCCD.
-
-### 7.6. OLS demo
-
-Đăng nhập một trong các user:
-
-```text
-u1 / ATBM123
-u2 / ATBM123
-u3 / ATBM123
-u4 / ATBM123
-u5 / ATBM123
-u6 / ATBM123
-u7 / ATBM123
-u8 / ATBM123
-```
-
-Ứng dụng mở màn hình `OlsDemoForm` và hiển thị các thông báo mà user được phép đọc từ `CQ09.THONGBAO`.
-
-## 8. Kịch bản demo đề xuất
-
-### Kịch bản 1 - Quản trị user/role
-
-1. Đăng nhập `SYS AS SYSDBA`.
-2. Mở tab User, tạo user `U_TEST`.
-3. Khóa/mở khóa user.
-4. Mở tab Role, tạo role `R_TEST`.
-5. Mở tab Grant, cấp `CREATE SESSION` hoặc role cho `U_TEST`.
-6. Mở tab Xem quyền để kiểm tra.
-7. Mở tab Revoke để thu hồi quyền.
-
-### Kịch bản 2 - Điều phối
-
-1. Đăng nhập `NV001/ATBM123`.
-2. Tạo hoặc sửa một bệnh nhân.
-3. Tạo HSBA mới.
-4. Phân công bác sĩ.
-5. Tạo dịch vụ và phân công KTV.
-
-### Kịch bản 3 - Bác sĩ
-
-1. Đăng nhập `BS001/ATBM123`.
-2. Kiểm tra chỉ thấy HSBA của `BS001`.
-3. Cập nhật chẩn đoán/điều trị/kết luận.
-4. Thêm hoặc sửa đơn thuốc.
-5. Chỉ định dịch vụ cho KTV.
-
-### Kịch bản 4 - Kỹ thuật viên
-
-1. Đăng nhập `KTV01/ATBM123`.
-2. Kiểm tra chỉ thấy dịch vụ của `KTV01`.
-3. Cập nhật kết quả dịch vụ.
-4. Kiểm tra không sửa được dữ liệu ngoài cột `KETQUA`.
-
-### Kịch bản 5 - Bệnh nhân
-
-1. Đăng nhập `BN000001/ATBM123`.
-2. Kiểm tra chỉ thấy thông tin của `BN000001`.
-3. Cập nhật địa chỉ hoặc dị ứng thuốc.
-4. Kiểm tra không có chức năng sửa mã, tên, ngày sinh, CCCD.
-
-### Kịch bản 6 - OLS
-
-1. Đăng nhập `u1`, kiểm tra thấy nhiều thông báo nhất.
-2. Đăng nhập `u4`, kiểm tra chỉ thấy thông báo phù hợp nhãn của user.
-3. Đăng nhập `u8`, kiểm tra thấy thông báo chung và thông báo đúng khoa/cơ sở.
-
-### Kịch bản 7 - Audit và recovery
-
-1. Chạy `03_audit_setup.sql`.
-2. Chạy thao tác cập nhật nhạy cảm từ ứng dụng hoặc `03_audit_test_actions.sql`.
-3. Đọc log bằng `03_audit_read_logs.sql`.
-4. Tạo sự cố trong `04_backup_recovery/03_demo_su_co.sql`.
-5. Xác định thời điểm bằng `04_check_audit_log.sql`.
-6. Khôi phục bằng `05_flashback_restore.sql`.
-
-## 9. Lỗi thường gặp
-
-| Hiện tượng | Nguyên nhân thường gặp | Cách xử lý |
-|---|---|---|
-| Không đăng nhập được Oracle | Sai host/port/service/user/password | Kiểm tra `localhost:1521/XEPDB1`, listener và PDB |
-| Không xác định được vai trò | Chưa chạy `schema_data.sql` hoặc `role.sql` | Chạy lại đúng thứ tự script |
-| App báo không tìm thấy procedure | Chưa chạy `StoredProcedures.sql` | Chạy script và kiểm tra procedure `SP_%` |
-| ORA-01031 insufficient privileges | User chạy script thiếu quyền | Dùng `SYS AS SYSDBA` cho bước hệ thống |
-| Không thấy dữ liệu đúng vai trò | Chưa chạy `VPD.sql` hoặc role chưa gán | Chạy lại `role.sql`, `VPD.sql`, đăng nhập lại |
-| OLS không chạy | Oracle chưa bật/cấu hình OLS | Chạy `OLS_setup.sql` bằng tài khoản đủ quyền |
-| Audit không có log | `audit_trail` đang `NONE` hoặc chưa restart | Bật `audit_trail = DB, EXTENDED`, restart Oracle |
-| Data Pump lỗi directory | Chưa tạo/grant directory backup | Chạy `00_prepare_backup_privileges.sql` |
-
-## 10. Ghi chú khi nộp/demo
-
-- Nên mở SQL Developer và ứng dụng WinForms song song.
-- Trước khi demo, chạy lại script theo đúng thứ tự trên một PDB sạch.
-- Chụp màn hình kiểm chứng cho VPD, OLS, Audit và Recovery.
-- Không dùng tài khoản `SYS AS SYSDBA` cho nghiệp vụ thường ngày; chỉ dùng để setup/demo trong lab.
-- `CQ09` được cấp quyền rộng để phục vụ đồ án và demo, không phải cấu hình production.
+# HƯỚNG DẪN CÀI ĐẶT & SỬ DỤNG NHANH
+## PHÂN HỆ 2 - NHÓM 09 (ỨNG DỤNG QUẢN LÝ DỮ LIỆU Y TẾ)
+
+Tài liệu này giúp bạn lập tức biết cách cài đặt Cơ sở dữ liệu Oracle, chạy ứng dụng WinForms và thực hiện các kịch bản demo một cách nhanh chóng và dễ dàng nhất.
+
+---
+
+## ⚡ PHẦN 1: HƯỚNG DẪN CHẠY SCRIPT SQL (ORACLE)
+
+Bạn có hai cách để thiết lập Cơ sở dữ liệu: chạy tự động toàn bộ (Khuyến nghị) hoặc chạy thủ công từng bước.
+
+### Cách 1: Thiết lập tự động toàn bộ 
+
+> [!IMPORTANT]
+> **HƯỚNG DẪN CHẠY BẰNG SQL DEVELOPER**
+> 1. Mở phần mềm SQL Developer.
+> 2. Chọn **File -> Open**, tìm đến thư mục dự án và chọn mở trực tiếp file **`script SQL/00_run_all.sql`**. *(Không được copy-paste nội dung vào Worksheet trắng để tránh lỗi đường dẫn relative)*.
+> 3. Chọn kết nối bằng tài khoản quản trị hệ thống **`SYS`** với vai trò **`SYSDBA`**.
+> 4. Nhấn phím **`F5`** (hoặc nút **Run Script** hình tờ giấy có nút Play xanh lá).
+> 
+> Hệ thống sẽ tự động khởi tạo User quản trị `CQ09`, nạp toàn bộ cấu trúc bảng, dữ liệu mẫu, thiết lập phân quyền RBAC, VPD, OLS và cấu hình Audit.
+---
+
+### Cách 2: Thiết lập thủ công từng bước (Nếu muốn kiểm tra từng phần)
+
+Đăng nhập bằng tài khoản **`SYS AS SYSDBA`** và chạy các file trong thư mục `script SQL/` theo đúng thứ tự sau:
+
+| Thứ tự | File chạy | Tài khoản chạy | Chức năng chi tiết |
+| :---: | :--- | :---: | :--- |
+| **1** | `01_StoredProcedures.sql` | `SYS AS SYSDBA` | Khởi tạo schema `CQ09`, cấp các quyền Admin và tạo các thủ tục (Stored Procedure) quản trị user/role/grant. |
+| **2** | `02_schema_data.sql` | `SYS` hoặc `CQ09` | Tạo các bảng (`NHANVIEN`, `BENHNHAN`, `HSBA`, `HSBA_DV`, `DONTHUOC`, `THONGBAO`), tạo index và nạp dữ liệu mẫu. |
+| **3** | `03_role.sql` | `SYS` hoặc `CQ09` | Khởi tạo các vai trò (`RL_DIEUPHOI`, `RL_BACSI`,...) và tự động tạo tài khoản database tương ứng cho từng nhân viên/bệnh nhân. |
+| **4** | `04_RBAC.sql` | `SYS` hoặc `CQ09` | Tạo các view bảo mật cơ bản (`vw_benhnhan`, `vw_nhanvien_canhan`,...) và cấp quyền SELECT, UPDATE có giới hạn cột cho các Role (RBAC truyền thống). |
+| **5** | `05_VPD.sql` | `SYS` hoặc `CQ09` | Áp dụng chính sách kiểm soát truy cập mức dòng/cột nâng cao bằng VPD (Virtual Private Database) lên các bảng gốc để chống bypass. |
+| **6** | `06_OLS_setup.sql` | `SYS AS SYSDBA` | Cấu hình Oracle Label Security trên bảng `THONGBAO` phục vụ phát tán thông tin khẩn cấp theo nhãn (Level, Compartment, Group) cho user `u1` - `u8`. |
+| **7** | `07_audit_setup.sql` | `SYS AS SYSDBA` | Cấu hình Standard Audit và Fine-Grained Audit (FGA) để ghi lại nhật ký khi có các thao tác nhạy cảm trên dữ liệu y tế. |
+---
+
+## 💻 PHẦN 2: HƯỚNG DẪN CHẠY ỨNG DỤNG WINFORMS
+
+### 1. Build dự án
+1. Mở Visual Studio và mở file solution: **`WindowsFormsApp1.slnx`** hoặc file project **`WindowsFormsApp1/WindowsFormsApp1.csproj`**.
+2. Nhấn chuột phải vào Solution chọn **Restore NuGet Packages** (nếu Visual Studio chưa tự động tải thư viện `Oracle.ManagedDataAccess`).
+3. Nhấn **F5** hoặc chọn **Build -> Build Solution** để biên dịch.
+4. File chạy `.exe` sau khi biên dịch thành công sẽ nằm ở: `WindowsFormsApp1/bin/Debug/NHOM09.exe`.
+
+### 2. Đăng nhập ứng dụng
+Khi màn hình đăng nhập hiện ra, điền các thông tin kết nối sau:
+* **Host**: `localhost` (hoặc IP máy chủ Oracle)
+* **Port**: `1521` (mặc định của Oracle)
+* **Service/PDB**: `XEPDB1` (PDB chứa schema dự án)
+* **User & Password**: Nhập theo bảng tài khoản demo bên dưới.
+* **SYSDBA**: Chỉ tích chọn ô này khi đăng nhập bằng tài khoản quản trị `SYS`.
+
+---
+
+## 🔑 PHẦN 3: DANH SÁCH TÀI KHOẢN DEMO & GIAO DIỆN TƯƠNG ỨNG
+
+Ứng dụng WinForms tự động nhận diện vai trò của tài khoản đăng nhập để mở màn hình chức năng phù hợp:
+
+| Tài khoản | Mật khẩu | Vai trò hệ thống | Màn hình hiển thị | Tính năng chính cần demo |
+| :--- | :---: | :---: | :--- | :--- |
+| **`SYS`** | *(Theo máy)* | **DBA / Admin** | `MainForm` | Quản trị viên: tạo/khóa/xóa User, Role, Cấp/Thu hồi quyền hệ thống, xem bảng quyền và duyệt cấu trúc database. |
+| **`NV001`** | `ATBM123` | **Điều phối viên** | `CoordinatorForm` | Quản lý danh sách bệnh nhân; Tạo hồ sơ bệnh án (HSBA); Phân công bác sĩ điều trị và kỹ thuật viên dịch vụ. |
+| **`BS001`** | `ATBM123` | **Bác sĩ / Y sĩ** | `DoctorForm` | Chỉ xem các HSBA mình phụ trách điều trị (VPD); Cập nhật chẩn đoán/điều trị; Kê đơn thuốc; Chỉ định dịch vụ y tế. |
+| **`KTV01`** | `ATBM123` | **Kỹ thuật viên** | `TechnicianForm` | Chỉ xem dịch vụ được chỉ định cho mình (VPD); Chỉ được phép cập nhật cột Kết quả (`KETQUA`). |
+| **`BN000001`** | `ATBM123` | **Bệnh nhân** | `PatientForm` | Chỉ tự xem thông tin cá nhân của mình; Chỉ được phép cập nhật địa chỉ, tiền sử bệnh, dị ứng thuốc. |
+| **`u1`** đến **`u8`** | `ATBM123` | **OLS Demo User** | `OlsDemoForm` | Đọc các thông báo khẩn cấp từ bảng `THONGBAO` dựa trên nhãn bảo mật OLS (Ví dụ: `u1` đọc được tất cả, `u4` chỉ đọc được thông báo chung). |
+
+---
+
+## 🧪 PHẦN 4: KỊCH BẢN DEMO NHANH (MẪU)
+
+### Kịch bản 1: Demo chính sách bảo mật VPD (Bác sĩ, KTV, Bệnh nhân)
+1. **Bác sĩ**: Đăng nhập bằng `BS001`. Kiểm tra danh sách HSBA chỉ hiển thị các bệnh án do `BS001` phụ trách. Thực hiện cập nhật chẩn đoán hoặc thêm đơn thuốc mới.
+2. **Kỹ thuật viên**: Đăng nhập bằng `KTV01`. Kiểm tra danh sách dịch vụ chỉ hiển thị dịch vụ giao cho mình. Thử sửa thông tin ngoài cột `KETQUA` hệ thống sẽ báo lỗi.
+3. **Bệnh nhân**: Đăng nhập bằng `BN000001`. Kiểm tra chỉ thấy thông tin cá nhân của chính mình. Cập nhật địa chỉ thành công, nhưng không sửa được Mã BN hay Họ tên.
+
+### Kịch bản 2: Demo Oracle Label Security (OLS)
+1. Đăng nhập bằng **`u1`** (Ban Giám Đốc toàn viện) -> Xem được **tất cả 7 thông báo** từ bảng `THONGBAO`.
+2. Đăng nhập bằng **`u4`** (Nhân viên khoa Thần kinh tại TP.HCM) -> Chỉ xem được đúng **1 thông báo chung** (t1).
+3. Đăng nhập bằng **`u8`** (Nhân viên khoa Tiêu hóa tại Hà Nội) -> Xem được **2 thông báo**: thông báo chung (t1) và thông báo riêng cho khoa Tiêu hóa Hà Nội (t6).
+
+### Kịch bản 3: Demo Kiểm toán (Audit) & Khôi phục dữ liệu (Recovery)
+1. Đăng nhập bằng **`SYS AS SYSDBA`** và chạy file kịch bản tạo log: `@script SQL/08_audit_test_actions.sql`.
+2. Đọc log kiểm toán để thấy các hành vi truy cập hợp lệ và bất hợp pháp bằng cách chạy: `@script SQL/09_audit_read_logs.sql`.
+3. Để demo sự cố khôi phục:
+   * Chạy kịch bản tạo sự cố (Bác sĩ `BS001` sửa sai liều dùng đơn thuốc): `@script SQL/04_backup_recovery/03_demo_su_co.sql`.
+   * Đọc audit log định vị thời điểm xảy ra sự cố: `@script SQL/04_backup_recovery/04_check_audit_log.sql`.
+   * Chạy script khôi phục đơn thuốc bằng Flashback Query về thời điểm trước đó: `@script SQL/04_backup_recovery/05_flashback_restore.sql`.
+---

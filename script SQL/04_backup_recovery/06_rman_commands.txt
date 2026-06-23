@@ -1,5 +1,15 @@
-RMAN COMMANDS - YEU CAU 4
-========================
+================================================================================
+FILE: 06_rman_commands.txt
+ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+CHỨC NĂNG:
+  - Tài liệu tham khảo các lệnh sao lưu và phục hồi dữ liệu mức vật lý sử dụng
+    công cụ Oracle Recovery Manager (RMAN).
+  - Hướng dẫn các lệnh:
+    + Kết nối RMAN.
+    + Backup toàn bộ Database (có hoặc không kèm Archive Logs).
+    + Quy trình tắt, khôi phục (Restore), phục hồi (Recover) và mở lại Database.
+HƯỚNG DẪN CHẠY: Thực thi trực tiếp trong CMD/PowerShell của hệ điều hành.
+================================================================================
 
 Chay trong CMD/PowerShell, khong chay trong SQL Developer:
 

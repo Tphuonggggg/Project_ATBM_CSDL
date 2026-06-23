@@ -1,19 +1,17 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE 02: TAO USER / ROLE
--- 
--- HƯỚNG DẪN CHẠY SCRIPT:
---   1. Đăng nhập bằng tài khoản quản trị dự án (ví dụ: ATBM_ADMIN) trên PDB XEPDB1.
---   2. Thực thi file này để khởi tạo các vai trò (roles) và tự động tạo hàng trăm tài khoản nhân viên/bệnh nhân.
---   3. Lệnh chạy: @d:\CODE\Project_ATBM\Project_ATBM_CSDL\WindowsFormsApp1\role.sql
--- 
--- Lưu ý:
---   - Chạy SAU file schema_data.sql.
---   - Chạy bằng user có quyền quản trị như ATBM_ADMIN (đã được cấp DBA).
---   - File này chỉ tạo user/role và gán role. Không cấp quyền nghiệp vụ trực tiếp trên bảng.
---   - Mật khẩu mặc định cho toàn bộ các tài khoản tạo ra: ATBM123
--- =============================================================
+-- =============================================================================
+-- FILE: 03_role.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Tạo các database role đại diện cho các vai trò nghiệp vụ trong bệnh viện
+--     (RL_DIEUPHOI, RL_BACSI, RL_KYTHUATVIEN, RL_BENHNHAN).
+--   - Cấp quyền kết nối (CREATE SESSION) cơ bản cho các role.
+--   - Quét dữ liệu mẫu trong bảng NHANVIEN và BENHNHAN để tự động tạo tài khoản
+--     Oracle tương ứng cho từng nhân viên và bệnh nhân.
+--   - Gán các role nghiệp vụ tương ứng cho các user vừa tạo (ví dụ: gán role
+--     RL_BACSI cho user BS001).
+-- TÀI KHOẢN THỰC THI: SYS hoặc tài khoản có quyền DBA
+-- THỨ TỰ THỰC THI: Bước 3 trong chuỗi thiết lập (sau khi có dữ liệu mẫu).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
@@ -188,11 +186,3 @@ WHERE USERNAME IN (
 ORDER BY USERNAME;
 
 PROMPT ===== HOAN TAT FILE USER / ROLE =====
-
-PROMPT Test nhanh:
-PROMPT   CONNECT BS001/ATBM123
-PROMPT   SELECT * FROM <SCHEMA_OWNER>.V_MY_ACCOUNT;
-PROMPT   CONNECT KTV01/ATBM123
-PROMPT   SELECT * FROM <SCHEMA_OWNER>.V_MY_ACCOUNT;
-PROMPT   CONNECT BN000001/ATBM123
-PROMPT   SELECT * FROM <SCHEMA_OWNER>.V_MY_ACCOUNT;

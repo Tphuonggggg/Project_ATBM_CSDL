@@ -1,6 +1,14 @@
--- =====================================================
--- STORED PROCEDURES FOR ORACLE DB ADMIN SERVICE
--- =====================================================
+-- =============================================================================
+-- FILE: 01_StoredProcedures.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Tạo tài khoản quản trị schema y tế CQ09.
+--   - Cấp các quyền quản trị viên (CREATE/ALTER/DROP USER, ROLE...) cho CQ09.
+--   - Tạo các Stored Procedure quản trị (tạo/sửa/xóa user/role, grant/revoke quyền)
+--     để ứng dụng WinForms gọi qua giao diện DBA (Phân hệ 1).
+-- TÀI KHOẢN THỰC THI: SYS AS SYSDBA
+-- THỨ TỰ THỰC THI: Chạy đầu tiên (Bước 1) trong chuỗi thiết lập.
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;

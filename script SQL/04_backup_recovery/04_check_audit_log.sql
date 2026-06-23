@@ -1,8 +1,14 @@
--- =============================================================
--- YEU CAU 4 - KIEM TRA AUDIT LOG SAU SU CO
---
--- Chay bang SYS AS SYSDBA hoac CQ09.
--- =============================================================
+-- =============================================================================
+-- FILE: 04_check_audit_log.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Truy vấn nhật ký kiểm toán (FGA Log) để định vị và phân tích nguyên nhân sự cố.
+--   - Tìm kiếm thời điểm (timestamp), tài khoản thực thi (db_user) và câu lệnh SQL
+--     đã thực hiện thao tác sửa đổi trái phép dữ liệu đơn thuốc.
+--   - Giúp xác định chính xác mốc thời gian để chuẩn bị cho quá trình khôi phục.
+-- TÀI KHOẢN THỰC THI: CQ09 (Quản trị viên dự án)
+-- THỨ TỰ THỰC THI: Chạy ngay sau khi sự cố xảy ra để tìm mốc thời gian khôi phục (Bước 4).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET LINESIZE 220;

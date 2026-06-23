@@ -1,30 +1,20 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE: VPD_TC3.sql
--- CAI DAT VPD CHO CAC TC NGHIEP VU PHAN HE 2
---
--- Huong dan chay:
---   1. Dang nhap bang user quan tri du an co quyen tren PDB XEPDB1
---      va co EXECUTE tren DBMS_RLS (vi du: CQ09/ATBM123 neu da chay StoredProcedures.sql).
---   2. Chay sau cac file:
---        schema_data.sql
---        role.sql
---   3. Lenh chay vi du:
---        @".\script SQL\VPD_TC3.sql"
---
--- Pham vi:
---   - TC#3: Bac si/Y si chi thao tac HSBA, don thuoc, chi dinh dich vu
---           tren cac HSBA do minh phu trach.
---   - TC#4: Ky thuat vien chi xem dich vu do minh phu trach va chi cap nhat KETQUA.
---   - TC#5: Benh nhan/nhan vien chi xem thong tin ca nhan va chi cap nhat
---           cac cot duoc phep.
---
--- Luu y:
---   - VPD bao ve tren bang goc; cac view ben duoi chi la lop tuong thich
---     voi ung dung WinForms hien co.
---   - Khong dat file nay trong thu muc WindowsFormsApp1.
--- =============================================================
+-- =============================================================================
+-- FILE: 05_VPD.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Cài đặt chính sách bảo mật Virtual Private Database (VPD) mức dòng/cột.
+--   - Xây dựng package PKG_VPD_PH2 chứa các hàm điều kiện lọc dữ liệu (predicates)
+--     cho từng bảng chính (NHANVIEN, BENHNHAN, HSBA, HSBA_DV, DONTHUOC).
+--   - Gán chính sách VPD bằng DBMS_RLS.ADD_POLICY vào các bảng gốc để đảm bảo:
+--     + Bác sĩ chỉ xem/sửa hồ sơ, chỉ chỉ định dịch vụ y tế cho bệnh nhân mình điều trị.
+--     + Kỹ thuật viên chỉ xem và cập nhật kết quả dịch vụ được giao cho chính mình.
+--     + Bệnh nhân chỉ xem và sửa địa chỉ/tiền sử cá nhân của chính mình.
+--   - Tạo các view ứng dụng nghiệp vụ tương thích cho WinForms và gán thay thế
+--     các Trigger (Instead of Triggers) phục vụ cập nhật thông tin an toàn.
+--   - Thu hồi quyền trực tiếp trên bảng gốc và gán quyền tối thiểu trên View cho các Role.
+-- TÀI KHOẢN THỰC THI: SYS hoặc tài khoản quản trị có quyền EXECUTE trên DBMS_RLS (CQ09)
+-- THỨ TỰ THỰC THI: Bước 5 trong chuỗi thiết lập.
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;

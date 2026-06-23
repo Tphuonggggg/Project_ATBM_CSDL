@@ -1,10 +1,14 @@
--- =============================================================
--- YEU CAU 4 - CHUAN BI QUYEN BACKUP/RESTORE CHO DATA PUMP
---
--- Chay bang SYS AS SYSDBA tren PDB XEPDB1 truoc khi chay expdp/impdp.
--- EXEMPT ACCESS POLICY giup Data Pump backup duoc du lieu dang bi VPD/OLS
--- bao ve, tranh canh bao ORA-39181 va nguy co export thieu dong.
--- =============================================================
+-- =============================================================================
+-- FILE: 00_prepare_backup_privileges.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Cấp các quyền cần thiết để sao lưu dữ liệu cho schema CQ09:
+--     + Quyền backup/restore qua Data Pump (DATAPUMP_EXP_FULL_DATABASE, DATAPUMP_IMP_FULL_DATABASE).
+--     + Quyền EXEMPT ACCESS POLICY để Data Pump bypass qua VPD/OLS, tránh lỗi
+--       export thiếu dòng hoặc cảnh báo ORA-39181.
+-- TÀI KHOẢN THỰC THI: SYS AS SYSDBA
+-- THỨ TỰ THỰC THI: Chạy trước khi thực hiện export/import Data Pump (Bước 1).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;

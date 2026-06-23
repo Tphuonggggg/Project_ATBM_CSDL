@@ -1,9 +1,14 @@
--- =============================================================
--- YEU CAU 4 - DEMO TAO SU CO
---
--- Chay bang SQL*Plus/SQLcl. Script dang nhap BS001 va sua sai lieu dung
--- tren don thuoc qua view nghiep vu. FGA cua yeu cau 3 se ghi log.
--- =============================================================
+-- =============================================================================
+-- FILE: 03_demo_su_co.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Giả lập một sự cố thay đổi dữ liệu trái phép trong hệ thống.
+--   - Đăng nhập dưới quyền bác sĩ BS001 để sửa sai cột LIEUDUNG (liều dùng thuốc)
+--     trên đơn thuốc thuộc bệnh án HSBA2024001 thông qua view nghiệp vụ.
+--   - Hệ thống Fine-Grained Audit (FGA) cấu hình trước đó sẽ âm thầm ghi lại log.
+-- TÀI KHOẢN THỰC THI: CONNECT chuyển đổi tự động sang BS001/ATBM123.
+-- THỨ TỰ THỰC THI: Chạy để bắt đầu kịch bản demo sao lưu/khôi phục (Bước 3).
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;

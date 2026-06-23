@@ -1,33 +1,19 @@
--- =============================================================
--- CSC12001 - AN TOAN BAO MAT DU LIEU TRONG HTTT
--- PHAN HE 2: UNG DUNG QUAN LY DU LIEU Y TE
--- FILE: OLS_setup.sql
--- YEU CAU 2: PHAT TAN THONG BAO DUNG ORACLE LABEL SECURITY
--- =============================================================
---
--- Mo hinh nhan:
---   LEVEL : COMPARTMENT : GROUP
---
--- LEVEL:
---   GD   = Ban Giam doc
---   LDK  = Lanh dao khoa
---   NV   = Nhan vien
---
--- COMPARTMENT:
---   TH = Khoa Tieu hoa
---   TK = Khoa Than kinh
---   TM = Khoa Tim mach
---
--- GROUP:
---   HCM = Co so Ho Chi Minh
---   HN  = Co so Ha Noi
---   HP  = Co so Hai Phong
---
--- Luu y thiet ke:
---   Cac thong bao gui TOAN VIEN / TOAN BO CAP BAC duoc gan nhan
---   khong kem compartment/group, vi neu gan tat ca khoa/co so len
---   mot dong thi user chi thuoc mot khoa/co so co the khong doc duoc.
--- =============================================================
+-- =============================================================================
+-- FILE: 06_OLS_setup.sql
+-- ĐỀ TÀI: ĐỒ ÁN AN TOÀN BẢO MẬT HỆ THỐNG THÔNG TIN
+-- CHỨC NĂNG:
+--   - Cấu hình giải pháp Oracle Label Security (OLS) để kiểm soát phát tán thông báo.
+--   - Thiết lập cấu trúc nhãn OLS:
+--     + Levels: GD (Ban Giám đốc - 30), LDK (Lãnh đạo khoa - 20), NV (Nhân viên - 10).
+--     + Compartments: TH (Tiêu hóa), TK (Thần kinh), TM (Tim mạch).
+--     + Groups: HCM (Cơ sở TP.HCM), HN (Cơ sở Hà Nội), HP (Cơ sở Hải Phòng).
+--   - Áp dụng chính sách bảo mật OLS lên bảng THONGBAO.
+--   - Tạo các tài khoản test `u1` đến `u8` và gán nhãn đọc tương đương cấp bậc,
+--     khoa và cơ sở y tế của họ.
+--   - Nạp các thông báo mẫu từ `t1` đến `t7` có kèm nhãn dữ liệu tương ứng để OLS tự động lọc.
+-- TÀI KHOẢN THỰC THI: SYS (Cần quyền SYSDBA/OLS Admin)
+-- THỨ TỰ THỰC THI: Bước 6 trong chuỗi thiết lập.
+-- =============================================================================
 
 SET DEFINE OFF;
 SET SERVEROUTPUT ON;
