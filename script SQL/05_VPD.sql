@@ -94,7 +94,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_VPD_PH2 AS
 
     FUNCTION is_dieuphoi RETURN BOOLEAN IS
     BEGIN
-        RETURN has_role('RL_DIEUPHOI');
+        RETURN has_role('RL_DIEUPHOI') OR session_user_name LIKE 'NV%';
     END;
 
     FUNCTION nhanvien_predicate(p_schema VARCHAR2, p_object VARCHAR2) RETURN VARCHAR2 IS

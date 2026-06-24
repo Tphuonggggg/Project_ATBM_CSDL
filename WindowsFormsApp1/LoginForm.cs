@@ -1,16 +1,15 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace WindowsFormsApp1
 {
     public partial class LoginForm : Form
     {
-        // ===== Tài khoản bypass (không cần kết nối Oracle) =====
-        // Nhập đúng user/password bên dưới -> bỏ qua test kết nối và mở thẳng MainForm.
-        // Lưu ý: các chức năng thao tác DB sẽ không chạy được vì không có Oracle thật.
         private const string BYPASS_USER = "demo";
         private const string BYPASS_PASSWORD = "demo";
         private const string BYPASS_CONNECTION_STRING = "User Id=demo;Password=demo;Data Source=OFFLINE_DEMO";
+        private const string ROLE_QUERY = "SELECT LOAI_NGUOIDUNG FROM CQ09.V_MY_ACCOUNT";
 
         public string ConnectionString { get; private set; }
         public bool IsBypassMode { get; private set; }
@@ -28,6 +27,54 @@ namespace WindowsFormsApp1
             UpdatePreview();
         }
 
+        private static bool IsSysdbaUser(string username)
+        {
+            var userLower = (username ?? string.Empty).Trim().ToLowerInvariant();
+            return userLower == "sys" || userLower == "system";
+        }
+
+        private static bool IsAdminUser(string username)
+        {
+            var userLower = (username ?? string.Empty).Trim().ToLowerInvariant();
+            return IsSysdbaUser(userLower) || userLower == "cq09";
+        }
+
+        private async Task<string> GetSessionUserAsync(string connectionString)
+        {
+            try
+            {
+                var dt = await OracleHelper.QueryAsync(
+                    connectionString,
+                    "SELECT SYS_CONTEXT('USERENV', 'SESSION_USER') AS SESSION_USER FROM DUAL");
+
+                if (dt != null && dt.Rows.Count > 0)
+                    return dt.Rows[0]["SESSION_USER"]?.ToString() ?? "(null)";
+            }
+            catch (Exception ex)
+            {
+                return "(khong doc duoc SESSION_USER: " + ex.Message + ")";
+            }
+
+            return "(khong co du lieu)";
+        }
+
+        private void ShowRoleLookupError(string username, string sessionUser, string detail)
+        {
+            MessageBox.Show(this,
+                $"Khong xac dinh duoc vai tro nghiep vu cho tai khoan '{username}'.\n" +
+                "Ung dung se giu lai man hinh dang nhap thay vi chuyen sang giao dien DBA.\n\n" +
+                "Debug:\n" +
+                $"- User nhap: {username}\n" +
+                $"- Oracle SESSION_USER: {sessionUser}\n" +
+                $"- Query: {ROLE_QUERY}\n" +
+                $"- Chi tiet: {detail}\n\n" +
+                "Hay kiem tra: da bo chon SYSDBA, dang ket noi dung PDB XEPDB1, " +
+                "da chay 02_schema_data.sql va 03_role.sql bang dung schema CQ09.",
+                "NHOM 09 - Loi nhan dien vai tro",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+
         private void UpdatePreview()
         {
             try
@@ -40,7 +87,7 @@ namespace WindowsFormsApp1
                     password: txtPassword.Text,
                     asSysdba: false);
 
-                cs = OracleDb.WithSysdba(cs, chkSysdba.Checked);
+                cs = OracleDb.WithSysdba(cs, chkSysdba.Checked && IsSysdbaUser(txtUser.Text));
                 txtPreview.Text = cs;
             }
             catch
@@ -54,77 +101,87 @@ namespace WindowsFormsApp1
             btnConnect.Enabled = false;
             try
             {
-                // Bypass: nếu user + password khớp với tài khoản demo, bỏ qua test kết nối Oracle.
-                if (string.Equals(txtUser.Text?.Trim(), BYPASS_USER, StringComparison.Ordinal) &&
+                var username = Username ?? string.Empty;
+                var userLower = username.ToLowerInvariant();
+
+                if (string.Equals(username, BYPASS_USER, StringComparison.Ordinal) &&
                     string.Equals(txtPassword.Text, BYPASS_PASSWORD, StringComparison.Ordinal))
                 {
                     IsBypassMode = true;
                     ConnectionString = BYPASS_CONNECTION_STRING;
-                    UserRole = "DBA"; // Mặc định DBA trong chế độ bypass
+                    UserRole = "DBA";
                     MessageBox.Show(this,
-                        "Đăng nhập bypass thành công. Ứng dụng sẽ mở ở chế độ XEM TRƯỚC (không kết nối Oracle).\n" +
-                        "Các thao tác truy vấn/grant/revoke sẽ báo lỗi vì không có Oracle thật.",
+                        "Dang nhap bypass thanh cong. Ung dung se mo o che do xem truoc, khong ket noi Oracle.\n" +
+                        "Cac thao tac truy van/grant/revoke se bao loi vi khong co Oracle that.",
                         "NHOM 09 - Bypass",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
                     DialogResult = DialogResult.OK;
                     Close();
+                    return;
+                }
+
+                if (chkSysdba.Checked && !IsSysdbaUser(username))
+                {
+                    chkSysdba.Checked = false;
+                    UpdatePreview();
+                    MessageBox.Show(this,
+                        "SYSDBA chi duoc dung cho tai khoan SYS hoac SYSTEM.\n" +
+                        $"Tai khoan '{username}' la user nghiep vu/du an nen da bo chon SYSDBA.\n\n" +
+                        "Bam Dang nhap lai de ket noi bang dung SESSION_USER.",
+                        "NHOM 09 - Cau hinh dang nhap",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                     return;
                 }
 
                 var cs = txtPreview.Text;
                 await OracleDb.TestConnectionAsync(cs);
                 ConnectionString = cs;
+                var sessionUser = await GetSessionUserAsync(ConnectionString);
 
-                // Xác định vai trò của người dùng từ CSDL Oracle
                 try
                 {
-                    var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
-                    if (System.Text.RegularExpressions.Regex.IsMatch(userLower, "^u[1-8]$"))
+                    if (IsAdminUser(username))
+                    {
+                        UserRole = "DBA";
+                    }
+                    else if (System.Text.RegularExpressions.Regex.IsMatch(userLower, "^u[1-8]$"))
                     {
                         UserRole = "OLS_DEMO";
                     }
                     else
                     {
-                        var dt = await OracleHelper.QueryAsync(ConnectionString, "SELECT LOAI_NGUOIDUNG FROM CQ09.V_MY_ACCOUNT");
+                        var dt = await OracleHelper.QueryAsync(ConnectionString, ROLE_QUERY);
                         if (dt != null && dt.Rows.Count > 0)
                         {
-                            UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString() ?? "DBA";
+                            UserRole = dt.Rows[0]["LOAI_NGUOIDUNG"]?.ToString();
+                            if (string.IsNullOrWhiteSpace(UserRole))
+                            {
+                                ShowRoleLookupError(username, sessionUser, "Cot LOAI_NGUOIDUNG bi rong.");
+                                return;
+                            }
                         }
                         else
                         {
-                            if (userLower != "sys" && userLower != "system" && userLower != "cq09")
-                            {
-                                MessageBox.Show(this,
-                                    $"Không tìm thấy thông tin nhân viên/bệnh nhân cho tài khoản '{txtUser.Text}' trong bảng dữ liệu.\n" +
-                                    $"Vui lòng kiểm tra xem bạn đã chạy nạp dữ liệu mẫu (schema_data.sql) chưa.\n\n" +
-                                    $"Hệ thống sẽ chuyển sang giao diện quản trị (DBA).",
-                                    "Cảnh báo dữ liệu trống",
-                                    MessageBoxButtons.OK,
-                                    MessageBoxIcon.Warning);
-                            }
-                            UserRole = "DBA";
+                            ShowRoleLookupError(
+                                username,
+                                sessionUser,
+                                "CQ09.V_MY_ACCOUNT khong tra ve dong nao cho SESSION_USER hien tai.");
+                            return;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Nếu là user SYS hoặc SYSTEM đăng nhập, mặc định là DBA mà không báo lỗi
-                    var userLower = (txtUser.Text ?? string.Empty).Trim().ToLower();
-                    if (userLower == "sys" || userLower == "system")
+                    if (IsAdminUser(username))
                     {
                         UserRole = "DBA";
                     }
                     else
                     {
-                        // Hiển thị lỗi chi tiết để nhà phát triển/người dùng biết chính xác nguyên nhân
-                        MessageBox.Show(this,
-                            $"Không thể xác định vai trò người dùng từ CQ09.V_MY_ACCOUNT.\n" +
-                            $"Chi tiết lỗi: {ex.Message}\n\n" +
-                            $"Hệ thống sẽ tạm thời chuyển sang giao diện quản trị (DBA).",
-                            "Cảnh báo cấu hình hệ thống",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Warning);
-                        UserRole = "DBA";
+                        ShowRoleLookupError(username, sessionUser, ex.Message);
+                        return;
                     }
                 }
 
@@ -133,7 +190,7 @@ namespace WindowsFormsApp1
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "NHOM 09 - Lỗi kết nối", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, ex.Message, "NHOM 09 - Loi ket noi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -155,4 +212,3 @@ namespace WindowsFormsApp1
         private void chkSysdba_CheckedChanged(object sender, EventArgs e) => UpdatePreview();
     }
 }
-

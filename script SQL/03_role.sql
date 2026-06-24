@@ -114,11 +114,11 @@ BEGIN
         -- Cap CREATE SESSION truc tiep de dam bao user dang nhap duoc trong moi moi truong Oracle.
         EXECUTE IMMEDIATE 'GRANT CREATE SESSION TO ' || r.MANV;
 
-        IF r.VAITRO = N'Điều phối viên' THEN
+        IF r.MANV LIKE 'NV%' OR r.VAITRO = N'Điều phối viên' THEN
             EXECUTE IMMEDIATE 'GRANT RL_DIEUPHOI TO ' || r.MANV;
-        ELSIF r.VAITRO = N'Bác sĩ/Y sĩ' THEN
+        ELSIF r.MANV LIKE 'BS%' OR r.VAITRO = N'Bác sĩ/Y sĩ' THEN
             EXECUTE IMMEDIATE 'GRANT RL_BACSI TO ' || r.MANV;
-        ELSIF r.VAITRO = N'Kỹ thuật viên' THEN
+        ELSIF r.MANV LIKE 'KTV%' OR r.VAITRO = N'Kỹ thuật viên' THEN
             EXECUTE IMMEDIATE 'GRANT RL_KYTHUATVIEN TO ' || r.MANV;
         END IF;
 
@@ -184,5 +184,18 @@ WHERE USERNAME IN (
     SELECT MABN FROM BENHNHAN
 )
 ORDER BY USERNAME;
+
+PROMPT ===== KIEM TRA ROLE CUA CAC USER DEMO CHINH =====
+
+SELECT u.USERNAME,
+       u.ACCOUNT_STATUS,
+       p.GRANTED_ROLE,
+       p.DEFAULT_ROLE
+FROM DBA_USERS u
+LEFT JOIN DBA_ROLE_PRIVS p
+       ON p.GRANTEE = u.USERNAME
+      AND p.GRANTED_ROLE IN ('RL_DIEUPHOI','RL_BACSI','RL_KYTHUATVIEN','RL_BENHNHAN')
+WHERE u.USERNAME IN ('NV001','NV020','BS001','KTV01')
+ORDER BY u.USERNAME, p.GRANTED_ROLE;
 
 PROMPT ===== HOAN TAT FILE USER / ROLE =====
