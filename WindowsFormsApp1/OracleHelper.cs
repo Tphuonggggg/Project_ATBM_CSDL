@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.Threading.Tasks;
 using Oracle.ManagedDataAccess.Client;
+using Oracle.ManagedDataAccess.Types;
 
 namespace WindowsFormsApp1
 {
@@ -85,18 +86,30 @@ namespace WindowsFormsApp1
                     {
                         var oracleParam = cmd.CreateParameter();
                         oracleParam.ParameterName = param.paramName;
-                        oracleParam.Value = param.paramValue ?? DBNull.Value;
 
                         if (param.paramType == OracleParamType.Output)
                         {
                             oracleParam.Direction = ParameterDirection.Output;
-                            oracleParam.Size = 4000; // For string output
+                            if (IsNumericOutputParameter(param.paramName, param.paramValue))
+                            {
+                                oracleParam.OracleDbType = OracleDbType.Decimal;
+                            }
+                            else
+                            {
+                                oracleParam.OracleDbType = OracleDbType.Varchar2;
+                                oracleParam.Size = 4000;
+                            }
                         }
                         else
                         {
                             oracleParam.Direction = ParameterDirection.Input;
+                            if (param.paramValue is int || param.paramValue is long || param.paramValue is decimal)
+                                oracleParam.OracleDbType = OracleDbType.Decimal;
+                            else
+                                oracleParam.OracleDbType = OracleDbType.Varchar2;
                         }
 
+                        oracleParam.Value = param.paramValue ?? DBNull.Value;
                         cmd.Parameters.Add(oracleParam);
                     }
 
@@ -106,12 +119,40 @@ namespace WindowsFormsApp1
                     var resultObj = cmd.Parameters["p_result"]?.Value;
                     var errorMsgObj = cmd.Parameters["p_error_msg"]?.Value;
 
-                    int result = resultObj != null && resultObj != DBNull.Value ? (int)resultObj : -1;
-                    string errorMsg = errorMsgObj != null && errorMsgObj != DBNull.Value ? errorMsgObj.ToString() : "";
+                    int result = ConvertOracleNumber(resultObj);
+                    string errorMsg = ConvertOracleString(errorMsgObj);
 
                     return (result, errorMsg);
                 }
             });
+        }
+
+        private static bool IsNumericOutputParameter(string paramName, object value)
+        {
+            return string.Equals(paramName, "p_result", StringComparison.OrdinalIgnoreCase)
+                   || value is int
+                   || value is long
+                   || value is decimal;
+        }
+
+        private static int ConvertOracleNumber(object value)
+        {
+            if (value == null || value == DBNull.Value) return -1;
+            if (value is OracleDecimal oracleDecimal)
+                return oracleDecimal.IsNull ? -1 : oracleDecimal.ToInt32();
+            if (value is decimal decimalValue) return Convert.ToInt32(decimalValue);
+            if (value is int intValue) return intValue;
+            if (value is long longValue) return Convert.ToInt32(longValue);
+
+            return int.TryParse(value.ToString(), out var parsed) ? parsed : -1;
+        }
+
+        private static string ConvertOracleString(object value)
+        {
+            if (value == null || value == DBNull.Value) return "";
+            if (value is OracleString oracleString)
+                return oracleString.IsNull ? "" : oracleString.Value;
+            return value.ToString();
         }
     }
 

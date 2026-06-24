@@ -22,8 +22,9 @@ namespace WindowsFormsApp1
             numPort.Value = 1521;
             txtHost.Text = "localhost";
             txtService.Text = "XEPDB1";
-            txtUser.Text = "sys";
-            chkSysdba.Checked = true;
+            txtUser.Text = "CQ09";
+            txtPassword.Text = "ATBM123";
+            chkSysdba.Checked = false;
             UpdatePreview();
         }
 

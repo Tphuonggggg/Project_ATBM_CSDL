@@ -47,7 +47,7 @@ namespace WindowsFormsApp1
         private GroupBox _grpGrantObjPriv;
         private ComboBox _cboGrantObjType;
         private ComboBox _cboGrantObjPriv;
-        private TextBox _txtGrantObjName; // OWNER.OBJECT
+        private ComboBox _cboGrantObjName; // OWNER.OBJECT
         private TextBox _txtGrantObjCols;
         private CheckBox _chkGrantObjWithGrant;
         private Button _btnGrantObj;
@@ -63,7 +63,7 @@ namespace WindowsFormsApp1
         private GroupBox _grpRevokeObjPriv;
         private ComboBox _cboRevokeObjType;
         private ComboBox _cboRevokeObjPriv;
-        private TextBox _txtRevokeObjName;
+        private ComboBox _cboRevokeObjName;
         private TextBox _txtRevokeObjCols;
         private Button _btnRevokeObj;
 
@@ -109,7 +109,6 @@ namespace WindowsFormsApp1
         private void SetBusy(bool busy)
         {
             UseWaitCursor = busy;
-            if (_tabs != null) _tabs.Enabled = !busy;
         }
 
         private ToolTip _tips;
@@ -433,7 +432,7 @@ namespace WindowsFormsApp1
 
             _grpGrantObjPriv = new GroupBox
             {
-                Text = "③ Cấp quyền trên đối tượng (table / view / procedure / function). SELECT & UPDATE có thể giới hạn theo cột.",
+                Text = "③ Cấp quyền trên đối tượng (table / view / procedure / function). UPDATE/INSERT/REFERENCES có thể giới hạn theo cột.",
                 Dock = DockStyle.Fill,
                 Padding = new Padding(12, 20, 12, 12),
                 Font = new Font("Segoe UI Semibold", 9.25f, FontStyle.Bold),
@@ -445,26 +444,31 @@ namespace WindowsFormsApp1
             _cboGrantObjType.SelectedIndex = 0;
 
             _cboGrantObjPriv = NewAutoCombo();
-            _cboGrantObjType.SelectedIndexChanged += (s, e) => PopulateObjectPrivileges(_cboGrantObjType, _cboGrantObjPriv);
+            _cboGrantObjType.SelectedIndexChanged += async (s, e) =>
+            {
+                PopulateObjectPrivileges(_cboGrantObjType, _cboGrantObjPriv);
+                await LoadCq09ObjectsAsync(_cboGrantObjType, _cboGrantObjName);
+            };
             PopulateObjectPrivileges(_cboGrantObjType, _cboGrantObjPriv);
 
-            _txtGrantObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES", Font = new Font("Consolas", 9.5f) };
+            _cboGrantObjName = NewObjectCombo();
+            _cboGrantObjName.Text = "CQ09.NHANVIEN";
             _txtGrantObjCols = new TextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 9.5f) };
             _chkGrantObjWithGrant = new CheckBox { Text = "WITH GRANT OPTION", Dock = DockStyle.Fill, AutoSize = false };
             _btnGrantObj = PrimaryButton("Cấp quyền object");
             _btnGrantObj.Click += async (s, e) => await GrantObjAsync();
-            _tips.SetToolTip(_txtGrantObjCols, "Chỉ áp dụng khi Privilege = SELECT hoặc UPDATE. Danh sách cột cách nhau bởi dấu phẩy. Để trống = cấp trên toàn object.");
-            _tips.SetToolTip(_txtGrantObjName, "Dạng OWNER.OBJECT, ví dụ HR.EMPLOYEES");
+            _tips.SetToolTip(_txtGrantObjCols, "Chỉ áp dụng với UPDATE/INSERT/REFERENCES. Để trống = cấp trên toàn object.");
+            _tips.SetToolTip(_cboGrantObjName, "Tải sẵn object của CQ09. Có thể nhập dạng OBJECT hoặc OWNER.OBJECT.");
 
             _grpGrantObjPriv.Controls.Add(BuildObjectPrivPanel(
-                _cboGrantObjType, _cboGrantObjPriv, _txtGrantObjName, _txtGrantObjCols, _chkGrantObjWithGrant, _btnGrantObj));
+                _cboGrantObjType, _cboGrantObjPriv, _cboGrantObjName, _txtGrantObjCols, _chkGrantObjWithGrant, _btnGrantObj));
 
             layout.Controls.Add(_grpGrantSysPriv, 0, 1);
             layout.Controls.Add(_grpGrantRole, 0, 2);
             layout.Controls.Add(_grpGrantObjPriv, 0, 3);
 
             tab.Controls.Add(layout);
-            tab.Enter += async (s, e) => await EnsurePrivilegeListsLoadedAsync();
+            tab.Enter += async (s, e) => await EnsureGrantRevokeTabReadyAsync();
             return tab;
         }
 
@@ -477,6 +481,13 @@ namespace WindowsFormsApp1
             AutoCompleteSource = AutoCompleteSource.ListItems,
             Font = new Font("Segoe UI", 9.25f)
         };
+
+        private static ComboBox NewObjectCombo()
+        {
+            var cbo = NewAutoCombo();
+            cbo.Font = new Font("Consolas", 9.5f);
+            return cbo;
+        }
 
         private static GroupBox BuildActionGroup(string title) => new GroupBox
         {
@@ -512,7 +523,7 @@ namespace WindowsFormsApp1
         }
 
         private static TableLayoutPanel BuildObjectPrivPanel(
-            ComboBox cboType, ComboBox cboPriv, TextBox txtObj, TextBox txtCols, CheckBox chkOpt, Button btn)
+            ComboBox cboType, ComboBox cboPriv, Control objectInput, TextBox txtCols, CheckBox chkOpt, Button btn)
         {
             var p = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 7 };
             p.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
@@ -532,7 +543,7 @@ namespace WindowsFormsApp1
             p.Controls.Add(L("Privilege:"), 0, 1);
             p.Controls.Add(cboPriv, 1, 1);
             p.Controls.Add(L("Object (OWNER.OBJECT):"), 0, 2);
-            p.Controls.Add(txtObj, 1, 2);
+            p.Controls.Add(objectInput, 1, 2);
             p.Controls.Add(L("Columns (CSV):"), 0, 3);
             p.Controls.Add(txtCols, 1, 3);
 
@@ -619,24 +630,30 @@ namespace WindowsFormsApp1
             _cboRevokeObjType.SelectedIndex = 0;
 
             _cboRevokeObjPriv = NewAutoCombo();
-            _cboRevokeObjType.SelectedIndexChanged += (s, e) => PopulateObjectPrivileges(_cboRevokeObjType, _cboRevokeObjPriv);
+            _cboRevokeObjType.SelectedIndexChanged += async (s, e) =>
+            {
+                PopulateObjectPrivileges(_cboRevokeObjType, _cboRevokeObjPriv);
+                await LoadCq09ObjectsAsync(_cboRevokeObjType, _cboRevokeObjName);
+            };
             PopulateObjectPrivileges(_cboRevokeObjType, _cboRevokeObjPriv);
 
-            _txtRevokeObjName = new TextBox { Dock = DockStyle.Fill, Text = "HR.EMPLOYEES", Font = new Font("Consolas", 9.5f) };
+            _cboRevokeObjName = NewObjectCombo();
+            _cboRevokeObjName.Text = "CQ09.NHANVIEN";
             _txtRevokeObjCols = new TextBox { Dock = DockStyle.Fill, Font = new Font("Consolas", 9.5f) };
             _btnRevokeObj = PrimaryButton("Thu hồi quyền object");
             _btnRevokeObj.Click += async (s, e) => await RevokeObjAsync();
-            _tips.SetToolTip(_txtRevokeObjCols, "Chỉ có tác dụng với SELECT/UPDATE. Để trống = thu hồi quyền trên toàn object.");
+            _tips.SetToolTip(_txtRevokeObjCols, "Để trống để thu hồi quyền trên object. Oracle không dùng danh sách cột trong cú pháp REVOKE này.");
+            _tips.SetToolTip(_cboRevokeObjName, "Tải sẵn object của CQ09. Có thể nhập dạng OBJECT hoặc OWNER.OBJECT.");
 
             _grpRevokeObjPriv.Controls.Add(BuildObjectPrivPanel(
-                _cboRevokeObjType, _cboRevokeObjPriv, _txtRevokeObjName, _txtRevokeObjCols, null, _btnRevokeObj));
+                _cboRevokeObjType, _cboRevokeObjPriv, _cboRevokeObjName, _txtRevokeObjCols, null, _btnRevokeObj));
 
             layout.Controls.Add(_grpRevokeSysPriv, 0, 1);
             layout.Controls.Add(_grpRevokeRole, 0, 2);
             layout.Controls.Add(_grpRevokeObjPriv, 0, 3);
 
             tab.Controls.Add(layout);
-            tab.Enter += async (s, e) => await EnsurePrivilegeListsLoadedAsync();
+            tab.Enter += async (s, e) => await EnsureGrantRevokeTabReadyAsync();
             return tab;
         }
 
@@ -964,7 +981,47 @@ namespace WindowsFormsApp1
         private void ShowError(Exception ex) =>
             MessageBox.Show(this, ex.Message, "NHOM 09 - Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
+        private void ShowSuccess(string message)
+        {
+            SetStatus(message);
+            MessageBox.Show(this, message, "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private static string ComboValueOrText(ComboBox cbo)
+        {
+            var value = cbo?.SelectedValue?.ToString();
+            if (string.IsNullOrWhiteSpace(value) ||
+                string.Equals(value, "System.Data.DataRowView", StringComparison.OrdinalIgnoreCase))
+            {
+                value = cbo?.Text;
+            }
+            return (value ?? string.Empty).Trim();
+        }
+
         private bool _privListsLoaded;
+        private bool _granteesLoaded;
+        private bool _grantRevokeTabLoading;
+
+        private async Task EnsureGrantRevokeTabReadyAsync()
+        {
+            if (_grantRevokeTabLoading) return;
+
+            _grantRevokeTabLoading = true;
+            try
+            {
+                await EnsurePrivilegeListsLoadedAsync();
+                if (!_granteesLoaded)
+                    await LoadGranteesAsync();
+
+                await LoadCq09ObjectsAsync(_cboGrantObjType, _cboGrantObjName);
+                await LoadCq09ObjectsAsync(_cboRevokeObjType, _cboRevokeObjName);
+            }
+            finally
+            {
+                _grantRevokeTabLoading = false;
+            }
+        }
+
         private async Task EnsurePrivilegeListsLoadedAsync()
         {
             if (_privListsLoaded) return;
@@ -994,6 +1051,73 @@ namespace WindowsFormsApp1
             }
         }
 
+        private async Task LoadCq09ObjectsAsync(ComboBox cboType, ComboBox cboObject)
+        {
+            if (cboType == null || cboObject == null) return;
+
+            var objectType = (cboType.SelectedItem?.ToString() ?? cboType.Text ?? "TABLE").Trim().ToUpperInvariant();
+            if (objectType.Length == 0) objectType = "TABLE";
+            if (string.Equals(cboObject.Tag as string, objectType, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            SetStatus($"Đang tải object {objectType} của CQ09...");
+            try
+            {
+                cboType.Enabled = false;
+                cboObject.Enabled = false;
+                var previous = ComboValueOrText(cboObject);
+                var dt = await _admin.GetObjectsAsync("CQ09", objectType);
+                var choices = new DataTable();
+                choices.Columns.Add("full_name", typeof(string));
+
+                foreach (DataRow row in dt.Rows)
+                {
+                    var name = row["name"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(name))
+                        choices.Rows.Add("CQ09." + name.Trim().ToUpperInvariant());
+                }
+
+                cboObject.DisplayMember = "full_name";
+                cboObject.ValueMember = "full_name";
+                cboObject.DataSource = choices;
+                cboObject.Tag = objectType;
+
+                var selectedIndex = -1;
+                if (!string.IsNullOrWhiteSpace(previous))
+                {
+                    for (var i = 0; i < cboObject.Items.Count; i++)
+                    {
+                        var itemText = ((DataRowView)cboObject.Items[i])["full_name"]?.ToString();
+                        if (string.Equals(itemText, previous, StringComparison.OrdinalIgnoreCase))
+                        {
+                            selectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+
+                if (selectedIndex >= 0) cboObject.SelectedIndex = selectedIndex;
+                else if (cboObject.Items.Count > 0) cboObject.SelectedIndex = 0;
+                else cboObject.Text = "CQ09.";
+
+                SetStatus(cboObject.Items.Count > 0
+                    ? $"Đã tải {cboObject.Items.Count} object {objectType} của CQ09."
+                    : $"CQ09 chưa có object loại {objectType}.");
+            }
+            catch (Exception ex)
+            {
+                cboObject.DataSource = null;
+                cboObject.Tag = null;
+                if (string.IsNullOrWhiteSpace(cboObject.Text)) cboObject.Text = "CQ09.";
+                ShowError(ex);
+            }
+            finally
+            {
+                cboType.Enabled = true;
+                cboObject.Enabled = true;
+            }
+        }
+
         private static void BindCombo(ComboBox cbo, DataTable dt, string col)
         {
             if (cbo == null) return;
@@ -1010,6 +1134,8 @@ namespace WindowsFormsApp1
             cboPriv.Items.Clear();
             if (t == "PROCEDURE" || t == "FUNCTION")
                 cboPriv.Items.Add("EXECUTE");
+            else if (t == "TABLE")
+                cboPriv.Items.AddRange(new object[] { "SELECT", "INSERT", "UPDATE", "DELETE", "ALTER", "INDEX", "REFERENCES" });
             else
                 cboPriv.Items.AddRange(new object[] { "SELECT", "INSERT", "UPDATE", "DELETE" });
             if (cboPriv.Items.Count > 0) cboPriv.SelectedIndex = 0;
@@ -1150,17 +1276,22 @@ namespace WindowsFormsApp1
 
                 Bind(_cboGrantGrantee);
                 Bind(_cboRevokeGrantee);
+                _granteesLoaded = true;
             }
-            catch (Exception ex) { ShowError(ex); }
+            catch (Exception ex)
+            {
+                _granteesLoaded = false;
+                ShowError(ex);
+            }
             finally { SetBusy(false); }
         }
 
         private bool RequireGrantee(ComboBox cbo, out string grantee)
         {
-            grantee = cbo?.SelectedValue?.ToString();
+            grantee = ComboValueOrText(cbo);
             if (string.IsNullOrWhiteSpace(grantee))
             {
-                MessageBox.Show(this, "Vui lòng bấm \"Tải danh sách users/roles\" và chọn một grantee trước.",
+                MessageBox.Show(this, "Vui lòng chọn hoặc nhập grantee trước khi cấp/thu hồi quyền.",
                     "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return false;
             }
@@ -1174,9 +1305,9 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var p = _cboGrantSysPriv.SelectedValue?.ToString() ?? _cboGrantSysPriv.Text;
+                var p = ComboValueOrText(_cboGrantSysPriv);
                 await _admin.GrantSystemPrivilegeAsync(g, p, _chkGrantSysWithAdmin.Checked);
-                SetStatus($"Đã cấp system privilege {p} cho {g}.");
+                ShowSuccess($"Đã cấp system privilege {p} cho {g}.");
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }
@@ -1188,9 +1319,9 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var r = _cboGrantRole.SelectedValue?.ToString() ?? _cboGrantRole.Text;
+                var r = ComboValueOrText(_cboGrantRole);
                 await _admin.GrantRoleAsync(g, r, _chkGrantRoleWithAdmin.Checked);
-                SetStatus($"Đã cấp role {r} cho {g}.");
+                ShowSuccess($"Đã cấp role {r} cho {g}.");
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }
@@ -1202,9 +1333,10 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                var p = _cboGrantObjPriv.SelectedItem?.ToString() ?? _cboGrantObjPriv.Text;
-                await _admin.GrantObjectPrivilegeAsync(g, p, _txtGrantObjName.Text, _txtGrantObjCols.Text, _chkGrantObjWithGrant.Checked);
-                SetStatus($"Đã cấp {p} trên {_txtGrantObjName.Text} cho {g}.");
+                var p = ComboValueOrText(_cboGrantObjPriv);
+                var obj = ComboValueOrText(_cboGrantObjName);
+                await _admin.GrantObjectPrivilegeAsync(g, p, obj, _txtGrantObjCols.Text, _chkGrantObjWithGrant.Checked);
+                ShowSuccess($"Đã cấp {p} trên {obj} cho {g}.");
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }
@@ -1222,7 +1354,7 @@ namespace WindowsFormsApp1
         private async Task RevokeSysAsync()
         {
             if (!RequireGrantee(_cboRevokeGrantee, out var g)) return;
-            var p = _cboRevokeSysPriv.SelectedValue?.ToString() ?? _cboRevokeSysPriv.Text;
+            var p = ComboValueOrText(_cboRevokeSysPriv);
             if (!ConfirmRevoke($"system privilege {p} từ {g}")) return;
             SetBusy(true);
             try
@@ -1237,7 +1369,7 @@ namespace WindowsFormsApp1
         private async Task RevokeRoleAsync()
         {
             if (!RequireGrantee(_cboRevokeGrantee, out var g)) return;
-            var r = _cboRevokeRole.SelectedValue?.ToString() ?? _cboRevokeRole.Text;
+            var r = ComboValueOrText(_cboRevokeRole);
             if (!ConfirmRevoke($"role {r} từ {g}")) return;
             SetBusy(true);
             try
@@ -1252,13 +1384,14 @@ namespace WindowsFormsApp1
         private async Task RevokeObjAsync()
         {
             if (!RequireGrantee(_cboRevokeGrantee, out var g)) return;
-            var p = _cboRevokeObjPriv.SelectedItem?.ToString() ?? _cboRevokeObjPriv.Text;
-            if (!ConfirmRevoke($"{p} trên {_txtRevokeObjName.Text} từ {g}")) return;
+            var p = ComboValueOrText(_cboRevokeObjPriv);
+            var obj = ComboValueOrText(_cboRevokeObjName);
+            if (!ConfirmRevoke($"{p} trên {obj} từ {g}")) return;
             SetBusy(true);
             try
             {
-                await _admin.RevokeObjectPrivilegeAsync(g, p, _txtRevokeObjName.Text, _txtRevokeObjCols.Text);
-                SetStatus($"Đã thu hồi {p} trên {_txtRevokeObjName.Text} từ {g}.");
+                await _admin.RevokeObjectPrivilegeAsync(g, p, obj, _txtRevokeObjCols.Text);
+                SetStatus($"Đã thu hồi {p} trên {obj} từ {g}.");
             }
             catch (Exception ex) { ShowError(ex); }
             finally { SetBusy(false); }

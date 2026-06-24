@@ -339,14 +339,23 @@ BEGIN
     v_privilege_upper := UPPER(TRIM(p_privilege));
     
     -- Build the GRANT statement
-    IF (v_privilege_upper = 'SELECT' OR v_privilege_upper = 'UPDATE') AND p_columns_csv IS NOT NULL AND TRIM(p_columns_csv) != '' THEN
-        -- Grant with columns
-        v_sql := 'GRANT ' || UPPER(p_privilege) || '(' || p_columns_csv || ') ON ' || 
-                 UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' TO "' || 
-                 REPLACE(p_grantee, '"', '""') || '"';
+    IF p_columns_csv IS NOT NULL AND TRIM(p_columns_csv) IS NOT NULL THEN
+        IF v_privilege_upper = 'SELECT' THEN
+            p_result := -1;
+            p_error_msg := 'Oracle không hỗ trợ GRANT SELECT theo từng cột. Hãy cấp SELECT toàn object hoặc tạo VIEW chỉ gồm các cột cần cho phép.';
+            RETURN;
+        ELSIF v_privilege_upper IN ('UPDATE', 'INSERT', 'REFERENCES') THEN
+            v_sql := 'GRANT ' || v_privilege_upper || '(' || p_columns_csv || ') ON ' || 
+                     UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' TO "' || 
+                     REPLACE(p_grantee, '"', '""') || '"';
+        ELSE
+            p_result := -1;
+            p_error_msg := 'Columns chỉ áp dụng cho quyền UPDATE, INSERT hoặc REFERENCES.';
+            RETURN;
+        END IF;
     ELSE
         -- Grant without columns
-        v_sql := 'GRANT ' || UPPER(p_privilege) || ' ON ' || 
+        v_sql := 'GRANT ' || v_privilege_upper || ' ON ' || 
                  UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' TO "' || 
                  REPLACE(p_grantee, '"', '""') || '"';
     END IF;
@@ -384,17 +393,15 @@ BEGIN
     v_privilege_upper := UPPER(TRIM(p_privilege));
     
     -- Build the REVOKE statement
-    IF (v_privilege_upper = 'SELECT' OR v_privilege_upper = 'UPDATE') AND p_columns_csv IS NOT NULL AND TRIM(p_columns_csv) != '' THEN
-        -- Revoke with columns
-        v_sql := 'REVOKE ' || UPPER(p_privilege) || '(' || p_columns_csv || ') ON ' || 
-                 UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' FROM "' || 
-                 REPLACE(p_grantee, '"', '""') || '"';
-    ELSE
-        -- Revoke without columns
-        v_sql := 'REVOKE ' || UPPER(p_privilege) || ' ON ' || 
-                 UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' FROM "' || 
-                 REPLACE(p_grantee, '"', '""') || '"';
+    IF p_columns_csv IS NOT NULL AND TRIM(p_columns_csv) IS NOT NULL THEN
+        p_result := -1;
+        p_error_msg := 'Oracle không hỗ trợ REVOKE theo danh sách cột trong cú pháp này. Hãy để trống Columns để thu hồi quyền trên object.';
+        RETURN;
     END IF;
+
+    v_sql := 'REVOKE ' || v_privilege_upper || ' ON ' || 
+             UPPER(p_object_owner) || '.' || UPPER(p_object_name) || ' FROM "' || 
+             REPLACE(p_grantee, '"', '""') || '"';
     
     EXECUTE IMMEDIATE v_sql;
     

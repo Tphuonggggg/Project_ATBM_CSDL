@@ -8,12 +8,15 @@ namespace WindowsFormsApp1
 {
     internal sealed class AdminService
     {
+        private const string AdminSchema = "CQ09";
         private readonly string _connectionString;
 
         public AdminService(string connectionString)
         {
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
+
+        private static string AdminProcedure(string procedureName) => AdminSchema + "." + procedureName;
 
         // ===== USERS =====
         public Task<DataTable> GetUsersAsync()
@@ -25,7 +28,7 @@ namespace WindowsFormsApp1
             if (u.Length == 0) throw new InvalidOperationException("Username không được để trống.");
             if (string.IsNullOrEmpty(password)) throw new InvalidOperationException("Password không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_create_user",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_create_user"),
                 ("p_username", u, OracleParamType.Input),
                 ("p_password", password, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -41,7 +44,7 @@ namespace WindowsFormsApp1
             if (u.Length == 0) throw new InvalidOperationException("Username không được để trống.");
             if (string.IsNullOrEmpty(newPassword)) throw new InvalidOperationException("Password mới không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_alter_user_password",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_alter_user_password"),
                 ("p_username", u, OracleParamType.Input),
                 ("p_new_password", newPassword, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -56,7 +59,7 @@ namespace WindowsFormsApp1
             var u = (username ?? string.Empty).Trim();
             if (u.Length == 0) throw new InvalidOperationException("Username không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_drop_user",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_drop_user"),
                 ("p_username", u, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
                 ("p_error_msg", "", OracleParamType.Output));
@@ -69,7 +72,7 @@ namespace WindowsFormsApp1
             var u = (username ?? string.Empty).Trim();
             if (u.Length == 0) throw new InvalidOperationException("Username không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_set_user_lock",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_set_user_lock"),
                 ("p_username", u, OracleParamType.Input),
                 ("p_locked", locked ? 1 : 0, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -90,7 +93,7 @@ namespace WindowsFormsApp1
             if (passwordRole && string.IsNullOrEmpty(rolePassword)) 
                 throw new InvalidOperationException("Vui lòng nhập password cho role.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_create_role",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_create_role"),
                 ("p_role_name", r, OracleParamType.Input),
                 ("p_is_password_role", passwordRole ? 1 : 0, OracleParamType.Input),
                 ("p_role_password", rolePassword ?? "", OracleParamType.Input),
@@ -106,7 +109,7 @@ namespace WindowsFormsApp1
             var r = (roleName ?? string.Empty).Trim();
             if (r.Length == 0) throw new InvalidOperationException("Role name không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_drop_role",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_drop_role"),
                 ("p_role_name", r, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
                 ("p_error_msg", "", OracleParamType.Output));
@@ -123,7 +126,7 @@ namespace WindowsFormsApp1
             if (g.Length == 0) throw new InvalidOperationException("Grantee không được để trống.");
             if (r.Length == 0) throw new InvalidOperationException("Role không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_grant_role",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_grant_role"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_role", r, OracleParamType.Input),
                 ("p_with_admin_option", withAdminOption ? 1 : 0, OracleParamType.Input),
@@ -141,7 +144,7 @@ namespace WindowsFormsApp1
             if (g.Length == 0) throw new InvalidOperationException("Grantee không được để trống.");
             if (r.Length == 0) throw new InvalidOperationException("Role không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_revoke_role",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_revoke_role"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_role", r, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -158,7 +161,7 @@ namespace WindowsFormsApp1
             if (g.Length == 0) throw new InvalidOperationException("Grantee không được để trống.");
             if (p.Length == 0) throw new InvalidOperationException("System privilege không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_grant_system_privilege",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_grant_system_privilege"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_privilege", p, OracleParamType.Input),
                 ("p_with_admin_option", withAdminOption ? 1 : 0, OracleParamType.Input),
@@ -176,7 +179,7 @@ namespace WindowsFormsApp1
             if (g.Length == 0) throw new InvalidOperationException("Grantee không được để trống.");
             if (p.Length == 0) throw new InvalidOperationException("System privilege không được để trống.");
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_revoke_system_privilege",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_revoke_system_privilege"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_privilege", p, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -198,16 +201,14 @@ namespace WindowsFormsApp1
             if (p.Length == 0) throw new InvalidOperationException("Privilege không được để trống.");
             if (obj.Length == 0) throw new InvalidOperationException("Object name không được để trống (dạng OWNER.OBJECT).");
 
-            // Parse owner and object name from "OWNER.OBJECT"
-            var parts = obj.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
-            var owner = parts.Length > 0 ? parts[0] : "";
-            var objectName2 = parts.Length > 1 ? parts[1] : "";
+            var parsedObject = ParseObjectName(obj);
+            ValidateObjectColumns(p, cols, false);
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_grant_object_privilege",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_grant_object_privilege"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_privilege", p, OracleParamType.Input),
-                ("p_object_owner", owner, OracleParamType.Input),
-                ("p_object_name", objectName2, OracleParamType.Input),
+                ("p_object_owner", parsedObject.Owner, OracleParamType.Input),
+                ("p_object_name", parsedObject.Name, OracleParamType.Input),
                 ("p_columns_csv", cols, OracleParamType.Input),
                 ("p_with_grant_option", withGrantOption ? 1 : 0, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
@@ -228,16 +229,14 @@ namespace WindowsFormsApp1
             if (p.Length == 0) throw new InvalidOperationException("Privilege không được để trống.");
             if (obj.Length == 0) throw new InvalidOperationException("Object name không được để trống (dạng OWNER.OBJECT).");
 
-            // Parse owner and object name from "OWNER.OBJECT"
-            var parts = obj.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
-            var owner = parts.Length > 0 ? parts[0] : "";
-            var objectName2 = parts.Length > 1 ? parts[1] : "";
+            var parsedObject = ParseObjectName(obj);
+            ValidateObjectColumns(p, cols, true);
 
-            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, "sp_revoke_object_privilege",
+            var (result, errorMsg) = await OracleHelper.ExecProcedureAsync(_connectionString, AdminProcedure("sp_revoke_object_privilege"),
                 ("p_grantee", g, OracleParamType.Input),
                 ("p_privilege", p, OracleParamType.Input),
-                ("p_object_owner", owner, OracleParamType.Input),
-                ("p_object_name", objectName2, OracleParamType.Input),
+                ("p_object_owner", parsedObject.Owner, OracleParamType.Input),
+                ("p_object_name", parsedObject.Name, OracleParamType.Input),
                 ("p_columns_csv", cols, OracleParamType.Input),
                 ("p_result", 0, OracleParamType.Output),
                 ("p_error_msg", "", OracleParamType.Output));
@@ -289,6 +288,47 @@ order by owner, object_name, priv_level, column_name, privilege";
             var g = (grantee ?? string.Empty).Trim().ToUpperInvariant();
             if (g.Length == 0) throw new InvalidOperationException("Vui lòng nhập tên user/role.");
             return g;
+        }
+
+        private static (string Owner, string Name) ParseObjectName(string objectName)
+        {
+            var obj = (objectName ?? string.Empty).Trim();
+            var parts = obj.Split(new[] { '.' }, StringSplitOptions.RemoveEmptyEntries);
+
+            string owner;
+            string name;
+            if (parts.Length == 1)
+            {
+                owner = AdminSchema;
+                name = parts[0].Trim();
+            }
+            else if (parts.Length == 2)
+            {
+                owner = parts[0].Trim();
+                name = parts[1].Trim();
+            }
+            else
+            {
+                throw new InvalidOperationException("Object name phải có dạng OBJECT hoặc OWNER.OBJECT.");
+            }
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException("Object name phải có dạng OBJECT hoặc OWNER.OBJECT.");
+
+            return (owner.ToUpperInvariant(), name.ToUpperInvariant());
+        }
+
+        private static void ValidateObjectColumns(string privilege, string columnsCsv, bool isRevoke)
+        {
+            if (string.IsNullOrWhiteSpace(columnsCsv)) return;
+
+            var p = (privilege ?? string.Empty).Trim().ToUpperInvariant();
+            if (isRevoke)
+                throw new InvalidOperationException("Oracle không hỗ trợ REVOKE theo danh sách cột trong cú pháp này. Hãy để trống Columns để thu hồi quyền trên object.");
+            if (p == "SELECT")
+                throw new InvalidOperationException("Oracle không hỗ trợ GRANT SELECT theo từng cột. Hãy để trống Columns để cấp SELECT toàn object, hoặc tạo VIEW chỉ gồm các cột cần cho phép.");
+            if (p != "UPDATE" && p != "INSERT" && p != "REFERENCES")
+                throw new InvalidOperationException("Columns chỉ áp dụng cho quyền UPDATE, INSERT hoặc REFERENCES.");
         }
 
         // ===== OBJECT BROWSER =====
