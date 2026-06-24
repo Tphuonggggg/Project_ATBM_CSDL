@@ -502,12 +502,15 @@ order by owner, object_name, priv_level, column_name, privilege";
         }
 
         // ===== RECOVERY / FLASHBACK =====
-        public async Task<DataTable> GetDonThuocRecoveryAuditAsync()
+        public async Task<DataTable> GetRecoverableAuditAsync()
         {
-            var unifiedSql = @"
+            var result = CreateRecoveryAuditTable();
+
+            var donThuocUnifiedSql = @"
                 select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
                        dbusername as db_user,
                        'UNIFIED_AUDIT_TRAIL' as source,
+                       'DONTHUOC' as recovery_type,
                        replace(replace(dbms_lob.substr(sql_text, 1000, 1), chr(10), ' '), chr(13), ' ') as sql_text
                 from unified_audit_trail
                 where audit_type = 'FineGrainedAudit'
@@ -517,10 +520,11 @@ order by owner, object_name, priv_level, column_name, privilege";
                 order by event_timestamp desc
                 fetch first 50 rows only";
 
-            var legacySql = @"
+            var donThuocLegacySql = @"
                 select to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
                        db_user,
                        'DBA_FGA_AUDIT_TRAIL' as source,
+                       'DONTHUOC' as recovery_type,
                        to_char(substr(sql_text, 1, 1000)) as sql_text
                 from dba_fga_audit_trail
                 where object_schema = 'CQ09'
@@ -529,9 +533,52 @@ order by owner, object_name, priv_level, column_name, privilege";
                 order by timestamp desc
                 fetch first 50 rows only";
 
-            var result = CreateRecoveryAuditTable();
-            await MergeRecoveryAuditRowsAsync(result, unifiedSql);
-            await MergeRecoveryAuditRowsAsync(result, legacySql);
+            var hsbaFgaUnifiedSql = @"
+                select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       dbusername as db_user,
+                       'UNIFIED_AUDIT_TRAIL' as source,
+                       'HSBA' as recovery_type,
+                       replace(replace(dbms_lob.substr(sql_text, 1000, 1), chr(10), ' '), chr(13), ' ') as sql_text
+                from unified_audit_trail
+                where audit_type = 'FineGrainedAudit'
+                  and object_schema = 'CQ09'
+                  and object_name = 'HSBA'
+                  and fga_policy_name = 'FGA_CQ09_HSBA_UPDATE'
+                order by event_timestamp desc
+                fetch first 50 rows only";
+
+            var hsbaFgaLegacySql = @"
+                select to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       db_user,
+                       'DBA_FGA_AUDIT_TRAIL' as source,
+                       'HSBA' as recovery_type,
+                       to_char(substr(sql_text, 1, 1000)) as sql_text
+                from dba_fga_audit_trail
+                where object_schema = 'CQ09'
+                  and object_name = 'HSBA'
+                  and policy_name = 'FGA_CQ09_HSBA_UPDATE'
+                order by timestamp desc
+                fetch first 50 rows only";
+
+            var hsbaViewUnifiedSql = @"
+                select to_char(event_timestamp, 'YYYY-MM-DD HH24:MI:SS') as audit_time,
+                       dbusername as db_user,
+                       'UNIFIED_AUDIT_TRAIL_VIEW' as source,
+                       'HSBA' as recovery_type,
+                       replace(replace(dbms_lob.substr(sql_text, 1000, 1), chr(10), ' '), chr(13), ' ') as sql_text
+                from unified_audit_trail
+                where object_schema = 'CQ09'
+                  and object_name = 'VW_BACSI_HSBA'
+                  and action_name = 'UPDATE'
+                  and unified_audit_policies like '%UA_CQ09_%'
+                order by event_timestamp desc
+                fetch first 50 rows only";
+
+            await MergeRecoveryAuditRowsAsync(result, donThuocUnifiedSql);
+            await MergeRecoveryAuditRowsAsync(result, donThuocLegacySql);
+            await MergeRecoveryAuditRowsAsync(result, hsbaFgaUnifiedSql);
+            await MergeRecoveryAuditRowsAsync(result, hsbaFgaLegacySql);
+            await MergeRecoveryAuditRowsAsync(result, hsbaViewUnifiedSql);
 
             var view = result.DefaultView;
             view.Sort = "AUDIT_TIME DESC, SOURCE ASC";
@@ -547,44 +594,51 @@ order by owner, object_name, priv_level, column_name, privilege";
                 {
                     var auditTime = row["AUDIT_TIME"]?.ToString() ?? "";
                     var sqlText = row["SQL_TEXT"]?.ToString() ?? "";
-                    var parsed = ParseDonThuocKeyFromSql(sqlText);
+                    var recoveryType = (row["RECOVERY_TYPE"]?.ToString() ?? "").Trim().ToUpperInvariant();
+                    var restoreTs = BuildSuggestedRestoreTs(auditTime);
+                    var parsed = recoveryType == "HSBA"
+                        ? ParseHsbaRecoveryKeyFromSql(sqlText)
+                        : ParseDonThuocRecoveryKeyFromSql(sqlText);
+
+                    if (string.IsNullOrWhiteSpace(parsed.Mahsba) || string.IsNullOrWhiteSpace(restoreTs))
+                        continue;
+                    if (recoveryType == "DONTHUOC" &&
+                        (string.IsNullOrWhiteSpace(parsed.Ngaydt) || string.IsNullOrWhiteSpace(parsed.Tenthuoc)))
+                        continue;
 
                     var newRow = target.NewRow();
+                    newRow["RECOVERY_TYPE"] = recoveryType;
+                    newRow["CAN_RESTORE"] = "YES";
                     newRow["AUDIT_TIME"] = auditTime;
                     newRow["DB_USER"] = row["DB_USER"]?.ToString() ?? "";
                     newRow["SOURCE"] = row["SOURCE"]?.ToString() ?? "";
-                    newRow["SUGGESTED_RESTORE_TS"] = BuildSuggestedRestoreTs(auditTime);
+                    newRow["SUGGESTED_RESTORE_TS"] = restoreTs;
                     newRow["MAHSBA"] = parsed.Mahsba;
                     newRow["NGAYDT"] = parsed.Ngaydt;
                     newRow["TENTHUOC"] = parsed.Tenthuoc;
+                    newRow["RESTORE_KEY"] = BuildRestoreKey(recoveryType, parsed.Mahsba, parsed.Ngaydt, parsed.Tenthuoc);
                     newRow["SQL_TEXT"] = sqlText;
                     target.Rows.Add(newRow);
                 }
             }
             catch (Exception ex)
             {
-                var errorRow = target.NewRow();
-                errorRow["AUDIT_TIME"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                errorRow["DB_USER"] = "";
-                errorRow["SOURCE"] = sql.IndexOf("dba_fga_audit_trail", StringComparison.OrdinalIgnoreCase) >= 0
-                    ? "DBA_FGA_AUDIT_TRAIL_ERROR"
-                    : "UNIFIED_AUDIT_TRAIL_ERROR";
-                errorRow["SUGGESTED_RESTORE_TS"] = "";
-                errorRow["MAHSBA"] = "";
-                errorRow["NGAYDT"] = "";
-                errorRow["TENTHUOC"] = "";
-                errorRow["SQL_TEXT"] = ex.Message;
-                target.Rows.Add(errorRow);
+                // Recovery only lists rows that can be restored. Source errors stay out of
+                // the grid so they are not mistaken for recoverable audit rows.
+                System.Diagnostics.Debug.WriteLine(ex.Message);
             }
         }
 
         private static DataTable CreateRecoveryAuditTable()
         {
             var table = new DataTable();
+            table.Columns.Add("RECOVERY_TYPE", typeof(string));
+            table.Columns.Add("CAN_RESTORE", typeof(string));
             table.Columns.Add("AUDIT_TIME", typeof(string));
             table.Columns.Add("DB_USER", typeof(string));
             table.Columns.Add("SOURCE", typeof(string));
             table.Columns.Add("SUGGESTED_RESTORE_TS", typeof(string));
+            table.Columns.Add("RESTORE_KEY", typeof(string));
             table.Columns.Add("MAHSBA", typeof(string));
             table.Columns.Add("NGAYDT", typeof(string));
             table.Columns.Add("TENTHUOC", typeof(string));
@@ -600,11 +654,11 @@ order by owner, object_name, priv_level, column_name, privilege";
             return parsed.AddSeconds(-10).ToString("yyyy-MM-dd HH:mm:ss");
         }
 
-        private static (string Mahsba, string Ngaydt, string Tenthuoc) ParseDonThuocKeyFromSql(string sqlText)
+        private static (string Mahsba, string Ngaydt, string Tenthuoc) ParseDonThuocRecoveryKeyFromSql(string sqlText)
         {
-            var mahsba = MatchSqlValue(sqlText, @"MAHSBA\s*=\s*'([^']*)'");
-            var tenthuoc = MatchSqlValue(sqlText, @"TENTHUOC\s*=\s*N?'([^']*)'");
-            var ngaydt = MatchSqlValue(sqlText, @"NGAYDT\s*=\s*TO_DATE\('([^']*)'\s*,\s*'DD/MM/YYYY'\)");
+            var mahsba = MatchSqlValue(sqlText, @"(?:[A-Z0-9_]+\.)?MAHSBA\s*=\s*'([^']*)'");
+            var tenthuoc = MatchSqlValue(sqlText, @"(?:[A-Z0-9_]+\.)?TENTHUOC\s*=\s*N?'([^']*)'");
+            var ngaydt = MatchSqlValue(sqlText, @"(?:[A-Z0-9_]+\.)?NGAYDT\s*=\s*TO_DATE\('([^']*)'\s*,\s*'DD/MM/YYYY'\)");
             if (!string.IsNullOrWhiteSpace(ngaydt))
             {
                 DateTime parsedDate;
@@ -613,9 +667,22 @@ order by owner, object_name, priv_level, column_name, privilege";
             }
             else
             {
-                ngaydt = MatchSqlValue(sqlText, @"NGAYDT\s*=\s*DATE\s*'([^']*)'");
+                ngaydt = MatchSqlValue(sqlText, @"(?:[A-Z0-9_]+\.)?NGAYDT\s*=\s*DATE\s*'([^']*)'");
             }
             return (mahsba, ngaydt, tenthuoc);
+        }
+
+        private static (string Mahsba, string Ngaydt, string Tenthuoc) ParseHsbaRecoveryKeyFromSql(string sqlText)
+        {
+            var mahsba = MatchSqlValue(sqlText, @"(?:[A-Z0-9_]+\.)?MAHSBA\s*=\s*'([^']*)'");
+            return (mahsba, "", "");
+        }
+
+        private static string BuildRestoreKey(string recoveryType, string maHsba, string ngayDt, string tenThuoc)
+        {
+            if (string.Equals(recoveryType, "DONTHUOC", StringComparison.OrdinalIgnoreCase))
+                return $"MAHSBA={maHsba}; NGAYDT={ngayDt}; TENTHUOC={tenThuoc}";
+            return $"MAHSBA={maHsba}";
         }
 
         private static string MatchSqlValue(string text, string pattern)
@@ -684,6 +751,55 @@ order by owner, object_name, priv_level, column_name, privilege";
             return rows;
         }
 
+        public Task<DataTable> GetCurrentHsbaAsync(string maHsba)
+        {
+            ValidateHsbaKey(maHsba);
+            var sql = $@"
+                select mahsba,
+                       chandoan,
+                       dieutri,
+                       ketluan
+                from CQ09.HSBA
+                where mahsba = {OracleHelper.QuoteLiteral(maHsba.Trim())}";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public Task<DataTable> GetFlashbackHsbaAsync(string maHsba, string restoreTs)
+        {
+            ValidateHsbaKey(maHsba);
+            ValidateRestoreTs(restoreTs);
+            var sql = $@"
+                select mahsba,
+                       chandoan,
+                       dieutri,
+                       ketluan
+                from CQ09.HSBA as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS')
+                where mahsba = {OracleHelper.QuoteLiteral(maHsba.Trim())}";
+            return OracleHelper.QueryAsync(_connectionString, sql);
+        }
+
+        public async Task<int> FlashRestoreHsbaAsync(string maHsba, string restoreTs)
+        {
+            ValidateHsbaKey(maHsba);
+            ValidateRestoreTs(restoreTs);
+            var sql = $@"
+                update CQ09.HSBA h
+                set (h.CHANDOAN, h.DIEUTRI, h.KETLUAN) = (
+                    select old.CHANDOAN, old.DIEUTRI, old.KETLUAN
+                    from CQ09.HSBA as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS') old
+                    where old.MAHSBA = h.MAHSBA
+                )
+                where h.MAHSBA = {OracleHelper.QuoteLiteral(maHsba.Trim())}
+                  and exists (
+                      select 1
+                      from CQ09.HSBA as of timestamp to_timestamp({OracleHelper.QuoteLiteral(restoreTs.Trim())}, 'YYYY-MM-DD HH24:MI:SS') old
+                      where old.MAHSBA = h.MAHSBA
+                  )";
+            var rows = await OracleHelper.ExecuteNonQueryAsync(_connectionString, sql);
+            await OracleHelper.ExecuteNonQueryAsync(_connectionString, "commit");
+            return rows;
+        }
+
         private static void ValidateDonThuocKey(string maHsba, string ngayDt, string tenThuoc)
         {
             if (string.IsNullOrWhiteSpace(maHsba))
@@ -695,6 +811,12 @@ order by owner, object_name, priv_level, column_name, privilege";
             DateTime parsed;
             if (!DateTime.TryParseExact(ngayDt.Trim(), "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out parsed))
                 throw new InvalidOperationException("Ngay don thuoc phai co dang YYYY-MM-DD.");
+        }
+
+        private static void ValidateHsbaKey(string maHsba)
+        {
+            if (string.IsNullOrWhiteSpace(maHsba))
+                throw new InvalidOperationException("MAHSBA khong duoc de trong.");
         }
 
         private static void ValidateRestoreTs(string restoreTs)

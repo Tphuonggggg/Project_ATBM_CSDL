@@ -817,7 +817,7 @@ namespace WindowsFormsApp1
             top.Controls.Add(_btnRecoveryApply);
             top.Controls.Add(new Label
             {
-                Text = "Chon dong audit update DONTHUOC, bam Restore audit da chon. App tu lay khoa dong va moc restore tu audit.",
+                Text = "Chon dong audit co the khoi phuc (DONTHUOC/HSBA), bam Restore audit da chon. App tu lay khoa dong va moc restore tu audit.",
                 AutoSize = true,
                 Padding = new Padding(12, 8, 0, 0),
                 ForeColor = Color.FromArgb(90, 95, 105)
@@ -826,10 +826,10 @@ namespace WindowsFormsApp1
             _gridRecoveryAudit = NewGrid();
 
             root.Controls.Add(top, 0, 0);
-            root.Controls.Add(WrapGrid("Audit FGA DONTHUOC tu UNIFIED_AUDIT_TRAIL va DBA_FGA_AUDIT_TRAIL", _gridRecoveryAudit), 0, 1);
+            root.Controls.Add(WrapGrid("Audit co the Flash Restore: DONTHUOC(LIEUDUNG) va HSBA(CHANDOAN/DIEUTRI/KETLUAN)", _gridRecoveryAudit), 0, 1);
             tab.Controls.Add(root);
 
-            _tips.SetToolTip(_btnRecoveryApply, "App se lay MAHSBA, NGAYDT, TENTHUOC va suggested_restore_ts tu dong audit dang chon.");
+            _tips.SetToolTip(_btnRecoveryApply, "App tu nhan dien DONTHUOC hoac HSBA, lay khoa dong va suggested_restore_ts tu audit dang chon.");
 
             return tab;
         }
@@ -863,8 +863,8 @@ namespace WindowsFormsApp1
             SetBusy(true);
             try
             {
-                _gridRecoveryAudit.DataSource = await _admin.GetDonThuocRecoveryAuditAsync();
-                SetStatus("Da tai audit FGA DONTHUOC cho Recovery.");
+                _gridRecoveryAudit.DataSource = await _admin.GetRecoverableAuditAsync();
+                SetStatus("Da tai audit co the Flash Restore cho Recovery.");
             }
             catch (Exception ex)
             {
@@ -884,6 +884,29 @@ namespace WindowsFormsApp1
                 return;
             }
 
+            var recoveryType = GetRecoveryAuditCell(rv, "RECOVERY_TYPE").ToUpperInvariant();
+            if (recoveryType == "DONTHUOC")
+            {
+                await ApplyDonThuocFlashRestoreAsync(rv);
+                return;
+            }
+
+            if (recoveryType == "HSBA")
+            {
+                await ApplyHsbaFlashRestoreAsync(rv);
+                return;
+            }
+
+            MessageBox.Show(
+                this,
+                "Dong audit nay khong co RECOVERY_TYPE hop le de restore.",
+                "NHOM 09",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        private async Task ApplyDonThuocFlashRestoreAsync(DataRowView rv)
+        {
             var input = (
                 Mahsba: GetRecoveryAuditCell(rv, "MAHSBA"),
                 Ngaydt: GetRecoveryAuditCell(rv, "NGAYDT"),
@@ -936,6 +959,69 @@ namespace WindowsFormsApp1
             {
                 SetBusy(false);
             }
+        }
+
+        private async Task ApplyHsbaFlashRestoreAsync(DataRowView rv)
+        {
+            var input = (
+                Mahsba: GetRecoveryAuditCell(rv, "MAHSBA"),
+                RestoreTs: GetRecoveryAuditCell(rv, "SUGGESTED_RESTORE_TS")
+            );
+
+            if (string.IsNullOrWhiteSpace(input.Mahsba) ||
+                string.IsNullOrWhiteSpace(input.RestoreTs))
+            {
+                MessageBox.Show(
+                    this,
+                    "Dong audit nay khong parse duoc du khoa MAHSBA/Restore TS.\nHay chon dong update HSBA duoc tao tu app bac si.",
+                    "NHOM 09",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            SetBusy(true);
+            try
+            {
+                var current = await _admin.GetCurrentHsbaAsync(input.Mahsba);
+                var flashback = await _admin.GetFlashbackHsbaAsync(input.Mahsba, input.RestoreTs);
+
+                var currentText = FormatHsbaSnapshot(current);
+                var oldText = FormatHsbaSnapshot(flashback);
+
+                var confirm = MessageBox.Show(
+                    this,
+                    $"Restore HSBA:\nMAHSBA: {input.Mahsba}\nRestore TS: {input.RestoreTs}\n\nHien tai:\n{currentText}\n\nGia tri se khoi phuc:\n{oldText}",
+                    "NHOM 09 - Xac nhan Flash Restore HSBA",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (confirm != DialogResult.Yes) return;
+
+                var rows = await _admin.FlashRestoreHsbaAsync(input.Mahsba, input.RestoreTs);
+                await RefreshRecoveryAuditAsync();
+                SetStatus($"Flash Restore HSBA hoan tat. So dong cap nhat: {rows}.");
+                MessageBox.Show(this, $"Flash Restore HSBA hoan tat. So dong cap nhat: {rows}.", "NHOM 09", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private static string FormatHsbaSnapshot(DataTable table)
+        {
+            if (table == null || table.Rows.Count == 0)
+                return "(khong thay du lieu)";
+
+            var row = table.Rows[0];
+            return "Chan doan: " + (row["CHANDOAN"]?.ToString() ?? "") + "\n" +
+                   "Dieu tri: " + (row["DIEUTRI"]?.ToString() ?? "") + "\n" +
+                   "Ket luan: " + (row["KETLUAN"]?.ToString() ?? "");
         }
 
         private static string GetRecoveryAuditCell(DataRowView rv, string column)
